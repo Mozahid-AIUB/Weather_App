@@ -333,6 +333,7 @@ export const HomeScreen: React.FC = () => {
             windSpeed={currentWeather?.wind.speed || 3.5}
             windDeg={currentWeather?.wind.deg || 180}
             rainChance={hourlyForecast[0]?.pop || (conditionType === 'rainy' ? 75 : conditionType === 'stormy' ? 90 : 10)}
+            onSelectCity={handleCitySelect}
           />
         ) : activeTab === 'cities' ? (
           <SavedCitiesView

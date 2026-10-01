@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { COLORS, FONTS } from '../constants';
+import { EarthGlobe3D } from './EarthGlobe3D';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +23,7 @@ interface Props {
   windSpeed?: number;
   windDeg?: number;
   rainChance?: number;
+  onSelectCity?: (cityName: string) => void;
 }
 
 export const RadarView: React.FC<Props> = ({
@@ -33,7 +35,9 @@ export const RadarView: React.FC<Props> = ({
   windSpeed = 3.6,
   windDeg = 190,
   rainChance = 15,
+  onSelectCity,
 }) => {
+  const [viewMode, setViewMode] = useState<'globe' | 'radar'>('globe');
   const [activeLayer, setActiveLayer] = useState<'rain' | 'wind' | 'temp'>('rain');
   const [isPlaying, setIsPlaying] = useState(true);
   const radarScanAnim = useRef(new Animated.Value(0)).current;
@@ -99,198 +103,278 @@ export const RadarView: React.FC<Props> = ({
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Doppler Weather Radar</Text>
-          <Text style={styles.subtitle}>
-            📍 {cityName} · 50 km Atmospheric Range
-          </Text>
-        </View>
+      {/* Mode Switcher: 3D Global Earth vs 2D Doppler Scope */}
+      <View style={styles.modeSwitchRow}>
         <TouchableOpacity
-          style={[styles.liveBadge, isPlaying && styles.liveBadgeActive]}
-          onPress={() => setIsPlaying(!isPlaying)}
-          activeOpacity={0.7}
+          style={[styles.modePill, viewMode === 'globe' && styles.modePillActive]}
+          onPress={() => setViewMode('globe')}
+          activeOpacity={0.8}
         >
-          <View style={[styles.pulseDot, !isPlaying && { backgroundColor: COLORS.textMuted }]} />
-          <Text style={styles.liveText}>{isPlaying ? 'SCANNING' : 'PAUSED'}</Text>
+          <Text style={[styles.modePillText, viewMode === 'globe' && styles.modePillTextActive]}>
+            🌍 3D Global Earth
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modePill, viewMode === 'radar' && styles.modePillActive]}
+          onPress={() => setViewMode('radar')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.modePillText, viewMode === 'radar' && styles.modePillTextActive]}>
+            📡 2D Doppler Scope
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Layer selector chips */}
-      <View style={styles.layersRow}>
-        {layers.map((l) => (
-          <TouchableOpacity
-            key={l.key}
-            style={[styles.layerChip, activeLayer === l.key && styles.activeLayerChip]}
-            onPress={() => setActiveLayer(l.key)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.layerText, activeLayer === l.key && styles.activeLayerText]}>
-              {l.icon} {l.label}
+      {/* ── 3D EARTH GLOBE VIEW ──────────────────────────────────── */}
+      {viewMode === 'globe' ? (
+        <View>
+          <EarthGlobe3D currentCityName={cityName} onSelectCity={onSelectCity} />
+
+          {/* Global Space Telemetry Cards */}
+          <View style={styles.telemetryGrid}>
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>☀️</Text>
+              <Text style={styles.telemetryLabel}>Solar Exposure</Text>
+              <Text style={styles.telemetryValue}>Live Sync</Text>
+              <Text style={styles.telemetryHint}>Day/Night Terminator</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🛰️</Text>
+              <Text style={styles.telemetryLabel}>Satellite Grid</Text>
+              <Text style={styles.telemetryValue}>Online</Text>
+              <Text style={styles.telemetryHint}>Geostationary 36k km</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🌀</Text>
+              <Text style={styles.telemetryLabel}>Atmosphere</Text>
+              <Text style={styles.telemetryValue}>1013 hPa</Text>
+              <Text style={styles.telemetryHint}>Mean Sea Level</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🌍</Text>
+              <Text style={styles.telemetryLabel}>World Focus</Text>
+              <Text style={styles.telemetryValue}>{cityName}</Text>
+              <Text style={styles.telemetryHint}>Tap city badge to orbit</Text>
+            </View>
+          </View>
+
+          {/* 3D Globe Guide */}
+          <View style={styles.guideCard}>
+            <Text style={styles.guideTitle}>🌐 How to Interact with 3D Earth</Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>Rotate & Move:</Text> Swipe or drag your finger anywhere on the Earth to spin it 360° across any continent.
             </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Interactive Radar Screen Canvas */}
-      <View style={styles.mapCanvas}>
-        {/* Cardinal Directions */}
-        <Text style={[styles.cardinalText, styles.cardinalN]}>N</Text>
-        <Text style={[styles.cardinalText, styles.cardinalS]}>S</Text>
-        <Text style={[styles.cardinalText, styles.cardinalE]}>E</Text>
-        <Text style={[styles.cardinalText, styles.cardinalW]}>W</Text>
-
-        {/* Distance Range Markers */}
-        <Text style={styles.rangeMarker15}>15 km</Text>
-        <Text style={styles.rangeMarker35}>35 km</Text>
-        <Text style={styles.rangeMarker50}>50 km</Text>
-
-        {/* Grid lines */}
-        <View style={styles.gridLineHorizontal} />
-        <View style={styles.gridLineVertical} />
-
-        {/* Radar concentric range rings */}
-        <View style={styles.ring1} />
-        <View style={styles.ring2} />
-        <View style={styles.ring3} />
-
-        {/* Center Target (Your Location) */}
-        <View style={styles.centerTarget}>
-          <Animated.View
-            style={[
-              styles.centerPulse,
-              { transform: [{ scale: pulseAnim }], opacity: pingOpacity },
-            ]}
-          />
-          <View style={styles.centerTargetPing} />
-          <Text style={styles.centerCityText}>📍 {cityName}</Text>
-        </View>
-
-        {/* Simulated precipitation storm cells */}
-        {activeLayer === 'rain' && (
-          <>
-            <View style={[styles.stormCell, { top: '24%', left: '30%', backgroundColor: 'rgba(74, 222, 128, 0.45)' }]} />
-            <View style={[styles.stormCell, { top: '38%', left: '56%', backgroundColor: 'rgba(250, 204, 21, 0.55)', width: 90, height: 90 }]} />
-            <View style={[styles.stormCell, { top: '54%', left: '22%', backgroundColor: isStormy ? 'rgba(239, 68, 68, 0.65)' : 'rgba(74, 222, 128, 0.35)', width: 70, height: 70 }]} />
-          </>
-        )}
-
-        {/* Temperature thermal heat zones */}
-        {activeLayer === 'temp' && (
-          <>
-            <View style={[styles.stormCell, { top: '22%', left: '20%', backgroundColor: 'rgba(249, 115, 22, 0.35)', width: 150, height: 150 }]} />
-            <View style={[styles.stormCell, { top: '44%', left: '48%', backgroundColor: 'rgba(239, 68, 68, 0.40)', width: 120, height: 120 }]} />
-          </>
-        )}
-
-        {/* Wind streams */}
-        {activeLayer === 'wind' && (
-          <>
-            <View style={[styles.stormCell, { top: '30%', left: '20%', backgroundColor: 'rgba(56, 189, 248, 0.35)', width: 170, height: 45, borderRadius: 25 }]} />
-            <View style={[styles.stormCell, { top: '56%', left: '42%', backgroundColor: 'rgba(34, 211, 238, 0.30)', width: 150, height: 35, borderRadius: 20, transform: [{ rotate: '25deg' }] }]} />
-          </>
-        )}
-
-        {/* Radar Sweep Beam */}
-        {isPlaying && (
-          <Animated.View
-            style={[
-              styles.sweepBeam,
-              { left: scanWidth },
-            ]}
-          />
-        )}
-
-        {/* Bottom Scope Legend */}
-        <View style={styles.legendCard}>
-          <Text style={styles.legendTitle}>
-            {activeLayer === 'rain' ? 'Precipitation Intensity' : activeLayer === 'wind' ? 'Wind Velocity' : 'Thermal Heat Index'}
-          </Text>
-          <View style={styles.legendBar}>
-            <View style={[styles.legendStep, { backgroundColor: '#4ADE80' }]} />
-            <View style={[styles.legendStep, { backgroundColor: '#FACC15' }]} />
-            <View style={[styles.legendStep, { backgroundColor: '#FB923C' }]} />
-            <View style={[styles.legendStep, { backgroundColor: '#F87171' }]} />
-            <View style={[styles.legendStep, { backgroundColor: '#C084FC' }]} />
-          </View>
-          <View style={styles.legendLabels}>
-            <Text style={styles.legendText}>Light (0-2 mm)</Text>
-            <Text style={styles.legendText}>Moderate (5 mm)</Text>
-            <Text style={styles.legendText}>Severe / Storm (15+ mm)</Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#F59E0B', fontFamily: FONTS.semiBold }}>Zoom In & Out (Close kora):</Text> Tap the <Text style={{ color: '#FFF' }}>➕</Text> and <Text style={{ color: '#FFF' }}>➖</Text> buttons to bring the Earth super close or zoom out to full space.
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#10B981', fontFamily: FONTS.semiBold }}>City Beacons:</Text> Tap on any glowing city pin (e.g. Dhaka, Tokyo, London, Dubai) to automatically rotate the globe and view its live weather!
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: COLORS.sky, fontFamily: FONTS.semiBold }}>Auto-Spin:</Text> Tap the <Text style={{ color: '#FFF' }}>⟳ Spin</Text> button in the top right to start or pause planetary rotation.
+            </Text>
           </View>
         </View>
-      </View>
+      ) : (
+        /* ── 2D DOPPLER RADAR SCOPE VIEW ────────────────────────── */
+        <View>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Doppler Weather Radar</Text>
+              <Text style={styles.subtitle}>
+                📍 {cityName} · 50 km Atmospheric Range
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.liveBadge, isPlaying && styles.liveBadgeActive]}
+              onPress={() => setIsPlaying(!isPlaying)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.pulseDot, !isPlaying && { backgroundColor: COLORS.textMuted }]} />
+              <Text style={styles.liveText}>{isPlaying ? 'SCANNING' : 'PAUSED'}</Text>
+            </TouchableOpacity>
+          </View>
 
-      {/* Real-Time Telemetry & Storm Status Banner */}
-      <View style={[styles.statusBanner, isStormy ? styles.statusBannerStorm : styles.statusBannerCalm]}>
-        <Text style={styles.statusBannerIcon}>{isStormy ? '⚠️' : '🛡️'}</Text>
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={styles.statusBannerTitle}>
-            {isStormy ? 'Active Storm Cells Nearby' : 'No Severe Storm Fronts Detected'}
-          </Text>
-          <Text style={styles.statusBannerDesc}>
-            {isStormy
-              ? `Precipitation cells moving towards ${cityName}. Rain probability is ${rainChance}%.`
-              : `Atmospheric stability within 50 km. Normal cloud movement towards ${getCompassDir(windDeg)}.`}
-          </Text>
+          {/* Layer selector chips */}
+          <View style={styles.layersRow}>
+            {layers.map((l) => (
+              <TouchableOpacity
+                key={l.key}
+                style={[styles.layerChip, activeLayer === l.key && styles.activeLayerChip]}
+                onPress={() => setActiveLayer(l.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.layerText, activeLayer === l.key && styles.activeLayerText]}>
+                  {l.icon} {l.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Interactive Radar Screen Canvas */}
+          <View style={styles.mapCanvas}>
+            {/* Cardinal Directions */}
+            <Text style={[styles.cardinalText, styles.cardinalN]}>N</Text>
+            <Text style={[styles.cardinalText, styles.cardinalS]}>S</Text>
+            <Text style={[styles.cardinalText, styles.cardinalE]}>E</Text>
+            <Text style={[styles.cardinalText, styles.cardinalW]}>W</Text>
+
+            {/* Distance Range Markers */}
+            <Text style={styles.rangeMarker15}>15 km</Text>
+            <Text style={styles.rangeMarker35}>35 km</Text>
+            <Text style={styles.rangeMarker50}>50 km</Text>
+
+            {/* Grid lines */}
+            <View style={styles.gridLineHorizontal} />
+            <View style={styles.gridLineVertical} />
+
+            {/* Radar concentric range rings */}
+            <View style={styles.ring1} />
+            <View style={styles.ring2} />
+            <View style={styles.ring3} />
+
+            {/* Center Target (Your Location) */}
+            <View style={styles.centerTarget}>
+              <Animated.View
+                style={[
+                  styles.centerPulse,
+                  { transform: [{ scale: pulseAnim }], opacity: pingOpacity },
+                ]}
+              />
+              <View style={styles.centerTargetPing} />
+              <Text style={styles.centerCityText}>📍 {cityName}</Text>
+            </View>
+
+            {/* Simulated precipitation storm cells */}
+            {activeLayer === 'rain' && (
+              <>
+                <View style={[styles.stormCell, { top: '24%', left: '30%', backgroundColor: 'rgba(74, 222, 128, 0.45)' }]} />
+                <View style={[styles.stormCell, { top: '38%', left: '56%', backgroundColor: 'rgba(250, 204, 21, 0.55)', width: 90, height: 90 }]} />
+                <View style={[styles.stormCell, { top: '54%', left: '22%', backgroundColor: isStormy ? 'rgba(239, 68, 68, 0.65)' : 'rgba(74, 222, 128, 0.35)', width: 70, height: 70 }]} />
+              </>
+            )}
+
+            {/* Temperature thermal heat zones */}
+            {activeLayer === 'temp' && (
+              <>
+                <View style={[styles.stormCell, { top: '22%', left: '20%', backgroundColor: 'rgba(249, 115, 22, 0.35)', width: 150, height: 150 }]} />
+                <View style={[styles.stormCell, { top: '44%', left: '48%', backgroundColor: 'rgba(239, 68, 68, 0.40)', width: 120, height: 120 }]} />
+              </>
+            )}
+
+            {/* Wind streams */}
+            {activeLayer === 'wind' && (
+              <>
+                <View style={[styles.stormCell, { top: '30%', left: '20%', backgroundColor: 'rgba(56, 189, 248, 0.35)', width: 170, height: 45, borderRadius: 25 }]} />
+                <View style={[styles.stormCell, { top: '56%', left: '42%', backgroundColor: 'rgba(34, 211, 238, 0.30)', width: 150, height: 35, borderRadius: 20, transform: [{ rotate: '25deg' }] }]} />
+              </>
+            )}
+
+            {/* Radar Sweep Beam */}
+            {isPlaying && (
+              <Animated.View
+                style={[
+                  styles.sweepBeam,
+                  { left: scanWidth },
+                ]}
+              />
+            )}
+
+            {/* Bottom Scope Legend */}
+            <View style={styles.legendCard}>
+              <Text style={styles.legendTitle}>
+                {activeLayer === 'rain' ? 'Precipitation Intensity' : activeLayer === 'wind' ? 'Wind Velocity' : 'Thermal Heat Index'}
+              </Text>
+              <View style={styles.legendBar}>
+                <View style={[styles.legendStep, { backgroundColor: '#4ADE80' }]} />
+                <View style={[styles.legendStep, { backgroundColor: '#FACC15' }]} />
+                <View style={[styles.legendStep, { backgroundColor: '#FB923C' }]} />
+                <View style={[styles.legendStep, { backgroundColor: '#F87171' }]} />
+                <View style={[styles.legendStep, { backgroundColor: '#C084FC' }]} />
+              </View>
+              <View style={styles.legendLabels}>
+                <Text style={styles.legendText}>Light (0-2 mm)</Text>
+                <Text style={styles.legendText}>Moderate (5 mm)</Text>
+                <Text style={styles.legendText}>Severe / Storm (15+ mm)</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Real-Time Telemetry & Storm Status Banner */}
+          <View style={[styles.statusBanner, isStormy ? styles.statusBannerStorm : styles.statusBannerCalm]}>
+            <Text style={styles.statusBannerIcon}>{isStormy ? '⚠️' : '🛡️'}</Text>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.statusBannerTitle}>
+                {isStormy ? 'Active Storm Cells Nearby' : 'No Severe Storm Fronts Detected'}
+              </Text>
+              <Text style={styles.statusBannerDesc}>
+                {isStormy
+                  ? `Precipitation cells moving towards ${cityName}. Rain probability is ${rainChance}%.`
+                  : `Atmospheric stability within 50 km. Normal cloud movement towards ${getCompassDir(windDeg)}.`}
+              </Text>
+            </View>
+          </View>
+
+          {/* 4 Live Radar Data Cards */}
+          <View style={styles.telemetryGrid}>
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🛰️</Text>
+              <Text style={styles.telemetryLabel}>Radar Scope</Text>
+              <Text style={styles.telemetryValue}>50 km</Text>
+              <Text style={styles.telemetryHint}>Coverage Radius</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🌧️</Text>
+              <Text style={styles.telemetryLabel}>Rain Probability</Text>
+              <Text style={styles.telemetryValue}>{rainChance}%</Text>
+              <Text style={styles.telemetryHint}>Next 60 Minutes</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>💨</Text>
+              <Text style={styles.telemetryLabel}>Wind Vector</Text>
+              <Text style={styles.telemetryValue}>
+                {unit === 'imperial' ? `${Math.round(windSpeed * 2.237)} mph` : `${Math.round(windSpeed * 3.6)} km/h`}
+              </Text>
+              <Text style={styles.telemetryHint}>Heading {getCompassDir(windDeg)}</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>💧</Text>
+              <Text style={styles.telemetryLabel}>Humidity Density</Text>
+              <Text style={styles.telemetryValue}>{humidity}%</Text>
+              <Text style={styles.telemetryHint}>Vapor Saturation</Text>
+            </View>
+          </View>
+
+          {/* How to Read This Radar Guide */}
+          <View style={styles.guideCard}>
+            <Text style={styles.guideTitle}>📖 How to Read This Doppler Radar</Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>Center Point:</Text> Represents your selected city ({cityName}).
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#4ADE80', fontFamily: FONTS.semiBold }}>Green Blobs:</Text> Light rainfall or moist cloud layers.
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#FACC15', fontFamily: FONTS.semiBold }}>Yellow Blobs:</Text> Moderate rain showers moving over surrounding areas.
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#F87171', fontFamily: FONTS.semiBold }}>Red Blobs:</Text> Heavy downpours, thunderstorms, or intense wind gust cells.
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: COLORS.sky, fontFamily: FONTS.semiBold }}>Rings (15/35/50 km):</Text> Distance radius from the center to track how far away rain clouds are.
+            </Text>
+          </View>
         </View>
-      </View>
+      )}
 
-      {/* 4 Live Radar Data Cards */}
-      <View style={styles.telemetryGrid}>
-        <View style={styles.telemetryCard}>
-          <Text style={styles.telemetryIcon}>🛰️</Text>
-          <Text style={styles.telemetryLabel}>Radar Scope</Text>
-          <Text style={styles.telemetryValue}>50 km</Text>
-          <Text style={styles.telemetryHint}>Coverage Radius</Text>
-        </View>
-
-        <View style={styles.telemetryCard}>
-          <Text style={styles.telemetryIcon}>🌧️</Text>
-          <Text style={styles.telemetryLabel}>Rain Probability</Text>
-          <Text style={styles.telemetryValue}>{rainChance}%</Text>
-          <Text style={styles.telemetryHint}>Next 60 Minutes</Text>
-        </View>
-
-        <View style={styles.telemetryCard}>
-          <Text style={styles.telemetryIcon}>💨</Text>
-          <Text style={styles.telemetryLabel}>Wind Vector</Text>
-          <Text style={styles.telemetryValue}>
-            {unit === 'imperial' ? `${Math.round(windSpeed * 2.237)} mph` : `${Math.round(windSpeed * 3.6)} km/h`}
-          </Text>
-          <Text style={styles.telemetryHint}>Heading {getCompassDir(windDeg)}</Text>
-        </View>
-
-        <View style={styles.telemetryCard}>
-          <Text style={styles.telemetryIcon}>💧</Text>
-          <Text style={styles.telemetryLabel}>Humidity Density</Text>
-          <Text style={styles.telemetryValue}>{humidity}%</Text>
-          <Text style={styles.telemetryHint}>Vapor Saturation</Text>
-        </View>
-      </View>
-
-      {/* How to Read This Radar Guide */}
-      <View style={styles.guideCard}>
-        <Text style={styles.guideTitle}>📖 How to Read This Doppler Radar</Text>
-        <Text style={styles.guideText}>
-          • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>Center Point:</Text> Represents your selected city ({cityName}).
-        </Text>
-        <Text style={styles.guideText}>
-          • <Text style={{ color: '#4ADE80', fontFamily: FONTS.semiBold }}>Green Blobs:</Text> Light rainfall or moist cloud layers.
-        </Text>
-        <Text style={styles.guideText}>
-          • <Text style={{ color: '#FACC15', fontFamily: FONTS.semiBold }}>Yellow Blobs:</Text> Moderate rain showers moving over surrounding areas.
-        </Text>
-        <Text style={styles.guideText}>
-          • <Text style={{ color: '#F87171', fontFamily: FONTS.semiBold }}>Red Blobs:</Text> Heavy downpours, thunderstorms, or intense wind gust cells.
-        </Text>
-        <Text style={styles.guideText}>
-          • <Text style={{ color: COLORS.sky, fontFamily: FONTS.semiBold }}>Rings (15/35/50 km):</Text> Distance radius from the center to track how far away rain clouds are.
-        </Text>
-      </View>
-
-      <View style={{ height: 100 }} />
+      <View style={{ height: 110 }} />
     </ScrollView>
   );
 };
@@ -300,6 +384,40 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 10,
+  },
+  modeSwitchRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 20,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  modePill: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  modePillActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.40)',
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+  },
+  modePillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textMuted,
+  },
+  modePillTextActive: {
+    color: COLORS.accent,
+    fontFamily: FONTS.bold,
   },
   header: {
     flexDirection: 'row',
@@ -602,7 +720,7 @@ const styles = StyleSheet.create({
   },
   telemetryValue: {
     fontFamily: FONTS.bold,
-    fontSize: 18,
+    fontSize: 17,
     color: COLORS.textPrimary,
     marginTop: 2,
   },
@@ -630,6 +748,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
     lineHeight: 20,
-    marginBottom: 4,
+    marginBottom: 6,
   },
 });
