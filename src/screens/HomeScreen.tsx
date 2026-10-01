@@ -95,44 +95,6 @@ export const HomeScreen: React.FC = () => {
   const chipsSlide = useRef(new Animated.Value(30)).current;
   const contentSlide = useRef(new Animated.Value(40)).current;
 
-  // Fluid Tab Transition Animations
-  const tabContentOpacity = useRef(new Animated.Value(1)).current;
-  const tabContentTranslateY = useRef(new Animated.Value(0)).current;
-
-  const handleSelectTab = (tab: TabKey) => {
-    if (tab === activeTab) return;
-
-    Animated.parallel([
-      Animated.timing(tabContentOpacity, {
-        toValue: 0,
-        duration: 90,
-        useNativeDriver: true,
-      }),
-      Animated.timing(tabContentTranslateY, {
-        toValue: 6,
-        duration: 90,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setActiveTab(tab);
-      tabContentTranslateY.setValue(-6);
-      Animated.parallel([
-        Animated.timing(tabContentOpacity, {
-          toValue: 1,
-          duration: 200,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.spring(tabContentTranslateY, {
-          toValue: 0,
-          friction: 8,
-          tension: 80,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    });
-  };
-
   const {
     currentWeather,
     dailyForecast,
@@ -360,20 +322,17 @@ export const HomeScreen: React.FC = () => {
           </View>
         </Animated.View>
 
-        {/* Tab Router Switcher with Fluid Animation */}
-        <Animated.View
-          style={{
-            flex: 1,
-            opacity: tabContentOpacity,
-            transform: [{ translateY: tabContentTranslateY }],
-          }}
-        >
-          {activeTab === 'radar' ? (
+        {/* Tab Router Switcher */}
+        {activeTab === 'radar' ? (
           <RadarView
             cityName={currentWeather?.name || 'Dhaka'}
             temp={currentWeather?.main.temp || 20}
             condition={conditionType}
             unit={unit}
+            humidity={currentWeather?.main.humidity || 55}
+            windSpeed={currentWeather?.wind.speed || 3.5}
+            windDeg={currentWeather?.wind.deg || 180}
+            rainChance={hourlyForecast[0]?.pop || (conditionType === 'rainy' ? 75 : conditionType === 'stormy' ? 90 : 10)}
           />
         ) : activeTab === 'cities' ? (
           <SavedCitiesView
@@ -522,9 +481,9 @@ export const HomeScreen: React.FC = () => {
                     <Text style={styles.weatherCondition}>
                       {currentWeather.weather[0]?.description
                         ? currentWeather.weather[0].description
-                            .split(' ')
-                            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-                            .join(' ')
+                          .split(' ')
+                          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                          .join(' ')
                         : 'Clear'}
                     </Text>
 
@@ -683,10 +642,9 @@ export const HomeScreen: React.FC = () => {
             ) : null}
           </>
         )}
-        </Animated.View>
 
         {/* Floating Glassmorphic Bottom Tab Bar */}
-        <BottomTabBar activeTab={activeTab} onSelectTab={handleSelectTab} />
+        <BottomTabBar activeTab={activeTab} onSelectTab={setActiveTab} />
       </SafeAreaView>
 
       {/* AI Push Notification Control Center */}

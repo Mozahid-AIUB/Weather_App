@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
+  Animated,
+  Easing,
+  ScrollView,
+} from 'react-native';
 import { COLORS, FONTS } from '../constants';
 
 const { width } = Dimensions.get('window');
@@ -9,9 +18,22 @@ interface Props {
   temp: number;
   condition: string;
   unit: 'metric' | 'imperial';
+  humidity?: number;
+  windSpeed?: number;
+  windDeg?: number;
+  rainChance?: number;
 }
 
-export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) => {
+export const RadarView: React.FC<Props> = ({
+  cityName,
+  temp,
+  condition,
+  unit,
+  humidity = 58,
+  windSpeed = 3.6,
+  windDeg = 190,
+  rainChance = 15,
+}) => {
   const [activeLayer, setActiveLayer] = useState<'rain' | 'wind' | 'temp'>('rain');
   const [isPlaying, setIsPlaying] = useState(true);
   const radarScanAnim = useRef(new Animated.Value(0)).current;
@@ -23,17 +45,27 @@ export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) 
       loopAnim = Animated.loop(
         Animated.timing(radarScanAnim, {
           toValue: 1,
-          duration: 4000,
+          duration: 3500,
+          easing: Easing.linear,
           useNativeDriver: false,
         })
       );
       loopAnim.start();
 
-      // Center ping pulse
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.8, duration: 1500, easing: Easing.out(Easing.ease), useNativeDriver: false }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, easing: Easing.in(Easing.ease), useNativeDriver: false }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.7,
+            duration: 1400,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1400,
+            easing: Easing.in(Easing.ease),
+            useNativeDriver: true,
+          }),
         ])
       ).start();
     } else {
@@ -48,22 +80,32 @@ export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) 
   });
 
   const pingOpacity = pulseAnim.interpolate({
-    inputRange: [1, 1.8],
-    outputRange: [0.6, 0],
+    inputRange: [1, 1.7],
+    outputRange: [0.65, 0],
   });
 
   const layers = [
-    { key: 'rain' as const, icon: '🌧️', label: 'Precipitation' },
-    { key: 'wind' as const, icon: '💨', label: 'Wind' },
-    { key: 'temp' as const, icon: '🌡️', label: 'Temperature' },
+    { key: 'rain' as const, icon: '🌧️', label: 'Rain & Storms' },
+    { key: 'wind' as const, icon: '💨', label: 'Wind Currents' },
+    { key: 'temp' as const, icon: '🌡️', label: 'Heat Zones' },
   ];
 
+  const getCompassDir = (deg: number) => {
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return dirs[Math.round(deg / 45) % 8];
+  };
+
+  const isStormy = condition.includes('storm') || condition.includes('thunder') || rainChance > 60;
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Doppler Radar</Text>
-          <Text style={styles.subtitle}>📍 {cityName} · Live Next-Gen</Text>
+          <Text style={styles.title}>Doppler Weather Radar</Text>
+          <Text style={styles.subtitle}>
+            📍 {cityName} · 50 km Atmospheric Range
+          </Text>
         </View>
         <TouchableOpacity
           style={[styles.liveBadge, isPlaying && styles.liveBadgeActive]}
@@ -71,7 +113,7 @@ export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) 
           activeOpacity={0.7}
         >
           <View style={[styles.pulseDot, !isPlaying && { backgroundColor: COLORS.textMuted }]} />
-          <Text style={styles.liveText}>{isPlaying ? 'LIVE' : 'PAUSED'}</Text>
+          <Text style={styles.liveText}>{isPlaying ? 'SCANNING' : 'PAUSED'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -93,47 +135,60 @@ export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) 
 
       {/* Interactive Radar Screen Canvas */}
       <View style={styles.mapCanvas}>
+        {/* Cardinal Directions */}
+        <Text style={[styles.cardinalText, styles.cardinalN]}>N</Text>
+        <Text style={[styles.cardinalText, styles.cardinalS]}>S</Text>
+        <Text style={[styles.cardinalText, styles.cardinalE]}>E</Text>
+        <Text style={[styles.cardinalText, styles.cardinalW]}>W</Text>
+
+        {/* Distance Range Markers */}
+        <Text style={styles.rangeMarker15}>15 km</Text>
+        <Text style={styles.rangeMarker35}>35 km</Text>
+        <Text style={styles.rangeMarker50}>50 km</Text>
+
         {/* Grid lines */}
         <View style={styles.gridLineHorizontal} />
         <View style={styles.gridLineVertical} />
 
-        {/* Center Target with pulse */}
-        <View style={styles.centerTarget}>
-          <Animated.View style={[
-            styles.centerPulse,
-            { transform: [{ scale: pulseAnim }], opacity: pingOpacity },
-          ]} />
-          <View style={styles.centerTargetPing} />
-          <Text style={styles.centerCityText}>{cityName}</Text>
-        </View>
-
-        {/* Radar concentric rings */}
+        {/* Radar concentric range rings */}
         <View style={styles.ring1} />
         <View style={styles.ring2} />
         <View style={styles.ring3} />
 
+        {/* Center Target (Your Location) */}
+        <View style={styles.centerTarget}>
+          <Animated.View
+            style={[
+              styles.centerPulse,
+              { transform: [{ scale: pulseAnim }], opacity: pingOpacity },
+            ]}
+          />
+          <View style={styles.centerTargetPing} />
+          <Text style={styles.centerCityText}>📍 {cityName}</Text>
+        </View>
+
         {/* Simulated precipitation storm cells */}
         {activeLayer === 'rain' && (
           <>
-            <View style={[styles.stormCell, { top: '25%', left: '30%', backgroundColor: 'rgba(74, 222, 128, 0.45)' }]} />
-            <View style={[styles.stormCell, { top: '35%', left: '55%', backgroundColor: 'rgba(250, 204, 21, 0.55)', width: 90, height: 90 }]} />
-            <View style={[styles.stormCell, { top: '50%', left: '20%', backgroundColor: 'rgba(248, 113, 113, 0.65)', width: 60, height: 60 }]} />
+            <View style={[styles.stormCell, { top: '24%', left: '30%', backgroundColor: 'rgba(74, 222, 128, 0.45)' }]} />
+            <View style={[styles.stormCell, { top: '38%', left: '56%', backgroundColor: 'rgba(250, 204, 21, 0.55)', width: 90, height: 90 }]} />
+            <View style={[styles.stormCell, { top: '54%', left: '22%', backgroundColor: isStormy ? 'rgba(239, 68, 68, 0.65)' : 'rgba(74, 222, 128, 0.35)', width: 70, height: 70 }]} />
           </>
         )}
 
         {/* Temperature thermal heat zones */}
         {activeLayer === 'temp' && (
           <>
-            <View style={[styles.stormCell, { top: '20%', left: '20%', backgroundColor: 'rgba(249, 115, 22, 0.4)', width: 140, height: 140 }]} />
-            <View style={[styles.stormCell, { top: '40%', left: '45%', backgroundColor: 'rgba(239, 68, 68, 0.4)', width: 120, height: 120 }]} />
+            <View style={[styles.stormCell, { top: '22%', left: '20%', backgroundColor: 'rgba(249, 115, 22, 0.35)', width: 150, height: 150 }]} />
+            <View style={[styles.stormCell, { top: '44%', left: '48%', backgroundColor: 'rgba(239, 68, 68, 0.40)', width: 120, height: 120 }]} />
           </>
         )}
 
         {/* Wind streams */}
         {activeLayer === 'wind' && (
           <>
-            <View style={[styles.stormCell, { top: '30%', left: '25%', backgroundColor: 'rgba(56, 189, 248, 0.35)', width: 160, height: 50, borderRadius: 25 }]} />
-            <View style={[styles.stormCell, { top: '55%', left: '40%', backgroundColor: 'rgba(34, 211, 238, 0.3)', width: 140, height: 40, borderRadius: 20, transform: [{ rotate: '30deg' }] }]} />
+            <View style={[styles.stormCell, { top: '30%', left: '20%', backgroundColor: 'rgba(56, 189, 248, 0.35)', width: 170, height: 45, borderRadius: 25 }]} />
+            <View style={[styles.stormCell, { top: '56%', left: '42%', backgroundColor: 'rgba(34, 211, 238, 0.30)', width: 150, height: 35, borderRadius: 20, transform: [{ rotate: '25deg' }] }]} />
           </>
         )}
 
@@ -147,9 +202,11 @@ export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) 
           />
         )}
 
-        {/* Legend */}
+        {/* Bottom Scope Legend */}
         <View style={styles.legendCard}>
-          <Text style={styles.legendTitle}>Intensity</Text>
+          <Text style={styles.legendTitle}>
+            {activeLayer === 'rain' ? 'Precipitation Intensity' : activeLayer === 'wind' ? 'Wind Velocity' : 'Thermal Heat Index'}
+          </Text>
           <View style={styles.legendBar}>
             <View style={[styles.legendStep, { backgroundColor: '#4ADE80' }]} />
             <View style={[styles.legendStep, { backgroundColor: '#FACC15' }]} />
@@ -158,13 +215,83 @@ export const RadarView: React.FC<Props> = ({ cityName, temp, condition, unit }) 
             <View style={[styles.legendStep, { backgroundColor: '#C084FC' }]} />
           </View>
           <View style={styles.legendLabels}>
-            <Text style={styles.legendText}>Light</Text>
-            <Text style={styles.legendText}>Moderate</Text>
-            <Text style={styles.legendText}>Heavy / Severe</Text>
+            <Text style={styles.legendText}>Light (0-2 mm)</Text>
+            <Text style={styles.legendText}>Moderate (5 mm)</Text>
+            <Text style={styles.legendText}>Severe / Storm (15+ mm)</Text>
           </View>
         </View>
       </View>
-    </View>
+
+      {/* Real-Time Telemetry & Storm Status Banner */}
+      <View style={[styles.statusBanner, isStormy ? styles.statusBannerStorm : styles.statusBannerCalm]}>
+        <Text style={styles.statusBannerIcon}>{isStormy ? '⚠️' : '🛡️'}</Text>
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={styles.statusBannerTitle}>
+            {isStormy ? 'Active Storm Cells Nearby' : 'No Severe Storm Fronts Detected'}
+          </Text>
+          <Text style={styles.statusBannerDesc}>
+            {isStormy
+              ? `Precipitation cells moving towards ${cityName}. Rain probability is ${rainChance}%.`
+              : `Atmospheric stability within 50 km. Normal cloud movement towards ${getCompassDir(windDeg)}.`}
+          </Text>
+        </View>
+      </View>
+
+      {/* 4 Live Radar Data Cards */}
+      <View style={styles.telemetryGrid}>
+        <View style={styles.telemetryCard}>
+          <Text style={styles.telemetryIcon}>🛰️</Text>
+          <Text style={styles.telemetryLabel}>Radar Scope</Text>
+          <Text style={styles.telemetryValue}>50 km</Text>
+          <Text style={styles.telemetryHint}>Coverage Radius</Text>
+        </View>
+
+        <View style={styles.telemetryCard}>
+          <Text style={styles.telemetryIcon}>🌧️</Text>
+          <Text style={styles.telemetryLabel}>Rain Probability</Text>
+          <Text style={styles.telemetryValue}>{rainChance}%</Text>
+          <Text style={styles.telemetryHint}>Next 60 Minutes</Text>
+        </View>
+
+        <View style={styles.telemetryCard}>
+          <Text style={styles.telemetryIcon}>💨</Text>
+          <Text style={styles.telemetryLabel}>Wind Vector</Text>
+          <Text style={styles.telemetryValue}>
+            {unit === 'imperial' ? `${Math.round(windSpeed * 2.237)} mph` : `${Math.round(windSpeed * 3.6)} km/h`}
+          </Text>
+          <Text style={styles.telemetryHint}>Heading {getCompassDir(windDeg)}</Text>
+        </View>
+
+        <View style={styles.telemetryCard}>
+          <Text style={styles.telemetryIcon}>💧</Text>
+          <Text style={styles.telemetryLabel}>Humidity Density</Text>
+          <Text style={styles.telemetryValue}>{humidity}%</Text>
+          <Text style={styles.telemetryHint}>Vapor Saturation</Text>
+        </View>
+      </View>
+
+      {/* How to Read This Radar Guide */}
+      <View style={styles.guideCard}>
+        <Text style={styles.guideTitle}>📖 How to Read This Doppler Radar</Text>
+        <Text style={styles.guideText}>
+          • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>Center Point:</Text> Represents your selected city ({cityName}).
+        </Text>
+        <Text style={styles.guideText}>
+          • <Text style={{ color: '#4ADE80', fontFamily: FONTS.semiBold }}>Green Blobs:</Text> Light rainfall or moist cloud layers.
+        </Text>
+        <Text style={styles.guideText}>
+          • <Text style={{ color: '#FACC15', fontFamily: FONTS.semiBold }}>Yellow Blobs:</Text> Moderate rain showers moving over surrounding areas.
+        </Text>
+        <Text style={styles.guideText}>
+          • <Text style={{ color: '#F87171', fontFamily: FONTS.semiBold }}>Red Blobs:</Text> Heavy downpours, thunderstorms, or intense wind gust cells.
+        </Text>
+        <Text style={styles.guideText}>
+          • <Text style={{ color: COLORS.sky, fontFamily: FONTS.semiBold }}>Rings (15/35/50 km):</Text> Distance radius from the center to track how far away rain clouds are.
+        </Text>
+      </View>
+
+      <View style={{ height: 100 }} />
+    </ScrollView>
   );
 };
 
@@ -184,55 +311,48 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: COLORS.textPrimary,
     fontFamily: FONTS.extraBold,
-    fontWeight: '800',
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 12,
     color: COLORS.accent,
     fontFamily: FONTS.semiBold,
-    fontWeight: '600',
     marginTop: 2,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 20,
     gap: 6,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   liveBadgeActive: {
-    backgroundColor: 'rgba(239, 68, 68, 0.18)',
-    borderColor: 'rgba(239, 68, 68, 0.4)',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: 'rgba(56, 189, 248, 0.4)',
   },
   pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: COLORS.cyan,
   },
   liveText: {
     color: '#FFF',
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: FONTS.extraBold,
-    fontWeight: '800',
     letterSpacing: 0.5,
   },
   layersRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   layerChip: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
     paddingVertical: 8,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 18,
@@ -247,131 +367,161 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 12,
     fontFamily: FONTS.semiBold,
-    fontWeight: '600',
   },
   activeLayerText: {
     color: COLORS.accent,
     fontFamily: FONTS.bold,
-    fontWeight: '700',
   },
   mapCanvas: {
-    height: 380,
-    backgroundColor: 'rgba(8, 14, 28, 0.95)',
+    width: '100%',
+    height: 310,
     borderRadius: 28,
+    backgroundColor: 'rgba(6, 11, 25, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(56, 189, 248, 0.20)',
     overflow: 'hidden',
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 16,
   },
+  cardinalText: {
+    position: 'absolute',
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    color: 'rgba(56, 189, 248, 0.5)',
+  },
+  cardinalN: { top: 8, alignSelf: 'center' },
+  cardinalS: { bottom: 58, alignSelf: 'center' },
+  cardinalE: { right: 10, top: '44%' },
+  cardinalW: { left: 10, top: '44%' },
+
+  rangeMarker15: {
+    position: 'absolute',
+    top: '36%',
+    right: '34%',
+    fontSize: 9,
+    fontFamily: FONTS.medium,
+    color: 'rgba(255,255,255,0.25)',
+  },
+  rangeMarker35: {
+    position: 'absolute',
+    top: '25%',
+    right: '21%',
+    fontSize: 9,
+    fontFamily: FONTS.medium,
+    color: 'rgba(255,255,255,0.25)',
+  },
+  rangeMarker50: {
+    position: 'absolute',
+    top: '14%',
+    right: '10%',
+    fontSize: 9,
+    fontFamily: FONTS.medium,
+    color: 'rgba(255,255,255,0.25)',
+  },
+
   gridLineHorizontal: {
     position: 'absolute',
     width: '100%',
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
   },
   gridLineVertical: {
     position: 'absolute',
     height: '100%',
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
   },
   ring1: {
     position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.1)',
+    borderColor: 'rgba(56, 189, 248, 0.20)',
     borderStyle: 'dashed',
   },
   ring2: {
     position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.07)',
-    borderStyle: 'dashed',
+    borderColor: 'rgba(56, 189, 248, 0.15)',
   },
   ring3: {
     position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.04)',
+    borderColor: 'rgba(56, 189, 248, 0.10)',
   },
   centerTarget: {
-    position: 'absolute',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
   },
   centerPulse: {
     position: 'absolute',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: COLORS.accent,
-    top: -8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(56, 189, 248, 0.4)',
   },
   centerTargetPing: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: COLORS.accent,
     borderWidth: 2,
     borderColor: '#FFF',
-    marginBottom: 4,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
   },
   centerCityText: {
-    color: '#FFF',
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: FONTS.bold,
-    fontWeight: '700',
+    color: '#FFF',
+    marginTop: 6,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   stormCell: {
     position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    opacity: 0.8,
   },
   sweepBeam: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: 'rgba(56, 189, 248, 0.7)',
+    backgroundColor: 'rgba(56, 189, 248, 0.8)',
     shadowColor: COLORS.accent,
-    shadowRadius: 12,
-    shadowOpacity: 0.8,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
   },
   legendCard: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 8,
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(10, 15, 30, 0.85)',
-    borderRadius: 18,
-    padding: 10,
+    backgroundColor: 'rgba(3, 7, 18, 0.85)',
+    borderRadius: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   legendTitle: {
-    fontSize: 10,
+    fontSize: 9,
     color: COLORS.textMuted,
     fontFamily: FONTS.bold,
-    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -391,9 +541,95 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   legendText: {
-    fontSize: 9,
+    fontSize: 8,
     color: COLORS.textMuted,
+    fontFamily: FONTS.regular,
+  },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  statusBannerCalm: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  statusBannerStorm: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  statusBannerIcon: {
+    fontSize: 22,
+  },
+  statusBannerTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  statusBannerDesc: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  telemetryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  telemetryCard: {
+    width: (width - 50) / 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 14,
+  },
+  telemetryIcon: {
+    fontSize: 20,
+    marginBottom: 6,
+  },
+  telemetryLabel: {
     fontFamily: FONTS.medium,
-    fontWeight: '500',
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  telemetryValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.textPrimary,
+    marginTop: 2,
+  },
+  telemetryHint: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.accent,
+    marginTop: 2,
+  },
+  guideCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 16,
+  },
+  guideTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+  },
+  guideText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    lineHeight: 20,
+    marginBottom: 4,
   },
 });
