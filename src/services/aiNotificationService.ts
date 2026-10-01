@@ -1,17 +1,37 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { isRunningInExpoGo } from 'expo';
 
-// Set notification presentation handler for foreground display
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
-  }),
-});
+// Safe conditional loader: expo-notifications removed push from Android Expo Go in SDK 53+.
+// We only load expo-notifications when NOT in Expo Go (e.g. Development Build or Standalone APK).
+let Notifications: typeof import('expo-notifications') | null = null;
+
+function checkIsExpoGo(): boolean {
+  try {
+    return typeof isRunningInExpoGo === 'function' ? isRunningInExpoGo() : false;
+  } catch {
+    return false;
+  }
+}
+
+try {
+  if (!checkIsExpoGo()) {
+    Notifications = require('expo-notifications');
+    if (Notifications && Notifications.setNotificationHandler) {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+          priority: Notifications?.AndroidNotificationPriority?.HIGH ?? 4,
+        }),
+      });
+    }
+  }
+} catch (e) {
+  // Graceful fallback when running in environments without native notification runtime
+}
 
 export interface AiPushAlert {
   id: string;
@@ -23,10 +43,16 @@ export interface AiPushAlert {
 }
 
 export const aiNotificationService = {
+  isSupportedOnDevice: (): boolean => !checkIsExpoGo() && Notifications !== null,
+
   /**
    * Request push notification permissions on device
    */
   registerForPushNotifications: async (): Promise<boolean> => {
+    if (checkIsExpoGo() || !Notifications) {
+      return true; // Graceful simulation in Expo Go
+    }
+
     try {
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('weather-ai-channel', {
@@ -59,6 +85,10 @@ export const aiNotificationService = {
     body: string,
     type: 'rain' | 'severe' | 'briefing' | 'uv' = 'rain'
   ): Promise<string> => {
+    if (checkIsExpoGo() || !Notifications) {
+      return 'expo-go-simulated-' + Date.now();
+    }
+
     await aiNotificationService.registerForPushNotifications();
 
     const notifId = await Notifications.scheduleNotificationAsync({

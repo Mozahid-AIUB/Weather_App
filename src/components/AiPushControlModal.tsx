@@ -51,8 +51,13 @@ export const AiPushControlModal: React.FC<Props> = ({
         windSpeed
       );
 
-      await aiNotificationService.triggerAiPushNotification(title, body, 'rain');
-      setLastPushSuccess(`✅ AI Push Notification Sent! (${title})`);
+      if (!aiNotificationService.isSupportedOnDevice()) {
+        await aiNotificationService.triggerAiPushNotification(title, body, 'rain');
+        setLastPushSuccess(`⚡ [AI Preview] ${title}\n${body}`);
+      } else {
+        await aiNotificationService.triggerAiPushNotification(title, body, 'rain');
+        setLastPushSuccess(`✅ Native Push Notification Sent to System Tray! (${title})`);
+      }
     } catch (e: any) {
       setLastPushSuccess(`⚠️ Push dispatched to system notification queue`);
     } finally {
