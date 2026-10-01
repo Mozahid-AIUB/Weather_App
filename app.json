@@ -29,21 +29,26 @@
       "package": "com.weathernow.app",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "scheme": "weathernow",
     "plugins": [
       "expo-location",
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {
-        "projectId": "your-eas-project-id"
+        "projectId": "3d0f4ed6-d32a-40fb-a350-8136066b7cc5"
       }
-    }
+    },
+    "owner": "mozahidislam"
   }
 }
