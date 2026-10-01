@@ -326,6 +326,8 @@ export const HomeScreen: React.FC = () => {
         {activeTab === 'radar' ? (
           <RadarView
             cityName={currentWeather?.name || 'Dhaka'}
+            lat={currentWeather?.coord?.lat ?? 23.8103}
+            lon={currentWeather?.coord?.lon ?? 90.4125}
             temp={currentWeather?.main.temp || 20}
             condition={conditionType}
             unit={unit}

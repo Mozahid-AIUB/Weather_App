@@ -10,12 +10,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { COLORS, FONTS } from '../constants';
+import { WeatherRadarMap } from './WeatherRadarMap';
 import { EarthGlobe3D } from './EarthGlobe3D';
 
 const { width } = Dimensions.get('window');
 
 interface Props {
   cityName: string;
+  lat?: number;
+  lon?: number;
   temp: number;
   condition: string;
   unit: 'metric' | 'imperial';
@@ -28,6 +31,8 @@ interface Props {
 
 export const RadarView: React.FC<Props> = ({
   cityName,
+  lat = 23.8103,
+  lon = 90.4125,
   temp,
   condition,
   unit,
@@ -37,7 +42,8 @@ export const RadarView: React.FC<Props> = ({
   rainChance = 15,
   onSelectCity,
 }) => {
-  const [viewMode, setViewMode] = useState<'globe' | 'radar'>('globe');
+  // Default to 'map' (The Weather Channel live Doppler radar map matching user screenshot)
+  const [viewMode, setViewMode] = useState<'map' | 'globe' | 'scope'>('map');
   const [activeLayer, setActiveLayer] = useState<'rain' | 'wind' | 'temp'>('rain');
   const [isPlaying, setIsPlaying] = useState(true);
   const radarScanAnim = useRef(new Animated.Value(0)).current;
@@ -45,7 +51,7 @@ export const RadarView: React.FC<Props> = ({
 
   useEffect(() => {
     let loopAnim: Animated.CompositeAnimation;
-    if (isPlaying) {
+    if (isPlaying && viewMode === 'scope') {
       loopAnim = Animated.loop(
         Animated.timing(radarScanAnim, {
           toValue: 1,
@@ -76,7 +82,7 @@ export const RadarView: React.FC<Props> = ({
       radarScanAnim.stopAnimation();
     }
     return () => loopAnim?.stop();
-  }, [isPlaying]);
+  }, [isPlaying, viewMode]);
 
   const scanWidth = radarScanAnim.interpolate({
     inputRange: [0, 1],
@@ -99,34 +105,143 @@ export const RadarView: React.FC<Props> = ({
     return dirs[Math.round(deg / 45) % 8];
   };
 
-  const isStormy = condition.includes('storm') || condition.includes('thunder') || rainChance > 60;
+  const isStormy = condition.includes('storm') || condition.includes('thunder') || rainChance > 50;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Mode Switcher: 3D Global Earth vs 2D Doppler Scope */}
+      {/* Mode Switcher: Live Radar Map vs 3D Global Earth vs 2D Doppler Scope */}
       <View style={styles.modeSwitchRow}>
+        <TouchableOpacity
+          style={[styles.modePill, viewMode === 'map' && styles.modePillActive]}
+          onPress={() => setViewMode('map')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.modePillText, viewMode === 'map' && styles.modePillTextActive]}>
+            🗺️ Live Radar Map
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.modePill, viewMode === 'globe' && styles.modePillActive]}
           onPress={() => setViewMode('globe')}
           activeOpacity={0.8}
         >
           <Text style={[styles.modePillText, viewMode === 'globe' && styles.modePillTextActive]}>
-            🌍 3D Global Earth
+            🌍 3D Earth
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.modePill, viewMode === 'radar' && styles.modePillActive]}
-          onPress={() => setViewMode('radar')}
+          style={[styles.modePill, viewMode === 'scope' && styles.modePillActive]}
+          onPress={() => setViewMode('scope')}
           activeOpacity={0.8}
         >
-          <Text style={[styles.modePillText, viewMode === 'radar' && styles.modePillTextActive]}>
-            📡 2D Doppler Scope
+          <Text style={[styles.modePillText, viewMode === 'scope' && styles.modePillTextActive]}>
+            📡 Telemetry
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* ── 3D EARTH GLOBE VIEW ──────────────────────────────────── */}
-      {viewMode === 'globe' ? (
+      {/* ── 1. LIVE DOPPLER RADAR MAP VIEW (The Weather Channel replica) ───────── */}
+      {viewMode === 'map' && (
+        <View>
+          {/* Top Bar matching screenshot */}
+          <View style={styles.mapTopHeader}>
+            <View style={styles.mapLocationBadge}>
+              <Text style={styles.mapLocationPin}>📍</Text>
+              <Text style={styles.mapLocationText}>{cityName}</Text>
+            </View>
+
+            {/* Weather Alert Tag */}
+            <View style={[styles.alertBadge, isStormy ? styles.alertBadgeStorm : styles.alertBadgeCalm]}>
+              <Text style={styles.alertBadgeIcon}>{isStormy ? '⚠️' : '🛡️'}</Text>
+              <Text style={styles.alertBadgeText}>
+                {isStormy ? 'ALERT ACTIVE' : 'NO SEVERE ALERTS'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Interactive Doppler Map Component with RainViewer tiles, controls, & timeline */}
+          <WeatherRadarMap
+            cityName={cityName}
+            lat={lat}
+            lon={lon}
+            temp={temp}
+            condition={condition}
+            unit={unit}
+            rainChance={rainChance}
+            onSelectCity={onSelectCity}
+          />
+
+          {/* Real-Time Telemetry & Storm Status Banner */}
+          <View style={[styles.statusBanner, isStormy ? styles.statusBannerStorm : styles.statusBannerCalm]}>
+            <Text style={styles.statusBannerIcon}>{isStormy ? '⛈️' : '🌤️'}</Text>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.statusBannerTitle}>
+                {isStormy ? 'Active Precipitation Bands Detected' : 'Clear Atmospheric Scan'}
+              </Text>
+              <Text style={styles.statusBannerDesc}>
+                {isStormy
+                  ? `Doppler radar tracking active storm cells over ${cityName}. Rain probability is ${rainChance}%.`
+                  : `Atmospheric stability over ${cityName}. Cloud drift moving towards ${getCompassDir(windDeg)} at ${unit === 'imperial' ? `${Math.round(windSpeed * 2.237)} mph` : `${Math.round(windSpeed * 3.6)} km/h`}.`}
+              </Text>
+            </View>
+          </View>
+
+          {/* 4 Live Telemetry Data Cards */}
+          <View style={styles.telemetryGrid}>
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🛰️</Text>
+              <Text style={styles.telemetryLabel}>Radar Source</Text>
+              <Text style={styles.telemetryValue}>Doppler Live</Text>
+              <Text style={styles.telemetryHint}>RainViewer HD Tiles</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>🌧️</Text>
+              <Text style={styles.telemetryLabel}>Precipitation</Text>
+              <Text style={styles.telemetryValue}>{rainChance}%</Text>
+              <Text style={styles.telemetryHint}>Next 60 Minutes</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>💨</Text>
+              <Text style={styles.telemetryLabel}>Wind Vector</Text>
+              <Text style={styles.telemetryValue}>
+                {unit === 'imperial' ? `${Math.round(windSpeed * 2.237)} mph` : `${Math.round(windSpeed * 3.6)} km/h`}
+              </Text>
+              <Text style={styles.telemetryHint}>Heading {getCompassDir(windDeg)}</Text>
+            </View>
+
+            <View style={styles.telemetryCard}>
+              <Text style={styles.telemetryIcon}>💧</Text>
+              <Text style={styles.telemetryLabel}>Humidity Density</Text>
+              <Text style={styles.telemetryValue}>{humidity}%</Text>
+              <Text style={styles.telemetryHint}>Vapor Saturation</Text>
+            </View>
+          </View>
+
+          {/* Quick User Guide */}
+          <View style={styles.guideCard}>
+            <Text style={styles.guideTitle}>💡 How to Use the Live Radar Map</Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>Timeline Loop [ ▶ ]:</Text> Press Play in the bottom bar to watch storm clouds and rain bands move across the map in real time.
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#F59E0B', fontFamily: FONTS.semiBold }}>Scrub History:</Text> Drag the timeline slider to view past radar scans (-2 hours) up to current time (Now).
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: '#10B981', fontFamily: FONTS.semiBold }}>Zoom & Pan:</Text> Pinch with two fingers or use the <Text style={{ color: '#FFF' }}>➕</Text> and <Text style={{ color: '#FFF' }}>➖</Text> buttons to inspect city streets, highways, and storm cells.
+            </Text>
+            <Text style={styles.guideText}>
+              • <Text style={{ color: COLORS.sky, fontFamily: FONTS.semiBold }}>Re-Center [ 🎯 ]:</Text> Tap the locate button on the right to instantly fly back to your selected city ({cityName}).
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── 2. 3D EARTH GLOBE VIEW ────────────────────────────────────────────── */}
+      {viewMode === 'globe' && (
         <View>
           <EarthGlobe3D currentCityName={cityName} onSelectCity={onSelectCity} />
 
@@ -178,8 +293,10 @@ export const RadarView: React.FC<Props> = ({
             </Text>
           </View>
         </View>
-      ) : (
-        /* ── 2D DOPPLER RADAR SCOPE VIEW ────────────────────────── */
+      )}
+
+      {/* ── 3. 2D DOPPLER SCOPE TELEMETRY VIEW ─────────────────────────────────── */}
+      {viewMode === 'scope' && (
         <View>
           {/* Header */}
           <View style={styles.header}>
@@ -304,22 +421,7 @@ export const RadarView: React.FC<Props> = ({
             </View>
           </View>
 
-          {/* Real-Time Telemetry & Storm Status Banner */}
-          <View style={[styles.statusBanner, isStormy ? styles.statusBannerStorm : styles.statusBannerCalm]}>
-            <Text style={styles.statusBannerIcon}>{isStormy ? '⚠️' : '🛡️'}</Text>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.statusBannerTitle}>
-                {isStormy ? 'Active Storm Cells Nearby' : 'No Severe Storm Fronts Detected'}
-              </Text>
-              <Text style={styles.statusBannerDesc}>
-                {isStormy
-                  ? `Precipitation cells moving towards ${cityName}. Rain probability is ${rainChance}%.`
-                  : `Atmospheric stability within 50 km. Normal cloud movement towards ${getCompassDir(windDeg)}.`}
-              </Text>
-            </View>
-          </View>
-
-          {/* 4 Live Radar Data Cards */}
+          {/* 4 Live Telemetry Data Cards */}
           <View style={styles.telemetryGrid}>
             <View style={styles.telemetryCard}>
               <Text style={styles.telemetryIcon}>🛰️</Text>
@@ -351,26 +453,6 @@ export const RadarView: React.FC<Props> = ({
               <Text style={styles.telemetryHint}>Vapor Saturation</Text>
             </View>
           </View>
-
-          {/* How to Read This Radar Guide */}
-          <View style={styles.guideCard}>
-            <Text style={styles.guideTitle}>📖 How to Read This Doppler Radar</Text>
-            <Text style={styles.guideText}>
-              • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>Center Point:</Text> Represents your selected city ({cityName}).
-            </Text>
-            <Text style={styles.guideText}>
-              • <Text style={{ color: '#4ADE80', fontFamily: FONTS.semiBold }}>Green Blobs:</Text> Light rainfall or moist cloud layers.
-            </Text>
-            <Text style={styles.guideText}>
-              • <Text style={{ color: '#FACC15', fontFamily: FONTS.semiBold }}>Yellow Blobs:</Text> Moderate rain showers moving over surrounding areas.
-            </Text>
-            <Text style={styles.guideText}>
-              • <Text style={{ color: '#F87171', fontFamily: FONTS.semiBold }}>Red Blobs:</Text> Heavy downpours, thunderstorms, or intense wind gust cells.
-            </Text>
-            <Text style={styles.guideText}>
-              • <Text style={{ color: COLORS.sky, fontFamily: FONTS.semiBold }}>Rings (15/35/50 km):</Text> Distance radius from the center to track how far away rain clouds are.
-            </Text>
-          </View>
         </View>
       )}
 
@@ -382,15 +464,15 @@ export const RadarView: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   modeSwitchRow: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 20,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
@@ -412,12 +494,64 @@ const styles = StyleSheet.create({
   },
   modePillText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
   },
   modePillTextActive: {
     color: COLORS.accent,
     fontFamily: FONTS.bold,
+  },
+  mapTopHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  mapLocationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mapLocationPin: {
+    fontSize: 13,
+    marginRight: 6,
+  },
+  mapLocationText: {
+    fontFamily: FONTS.bold,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  alertBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  alertBadgeCalm: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  alertBadgeStorm: {
+    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    borderColor: 'rgba(239, 68, 68, 0.45)',
+  },
+  alertBadgeIcon: {
+    fontSize: 12,
+    marginRight: 5,
+  },
+  alertBadgeText: {
+    fontSize: 10,
+    fontFamily: FONTS.extraBold,
+    color: COLORS.textPrimary,
+    letterSpacing: 0.5,
   },
   header: {
     flexDirection: 'row',
@@ -700,7 +834,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   telemetryCard: {
-    width: (width - 50) / 2,
+    width: (width - 42) / 2,
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: 18,
     borderWidth: 1,

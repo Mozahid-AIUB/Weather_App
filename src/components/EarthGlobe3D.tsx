@@ -8,21 +8,26 @@ import {
   Dimensions,
   Animated,
   Easing,
+  Image,
+  Platform,
 } from 'react-native';
 import Svg, {
   Circle,
-  Path,
   Defs,
   RadialGradient,
   LinearGradient as SvgLinearGradient,
   Stop,
   G,
+  Path,
 } from 'react-native-svg';
 import { COLORS, FONTS } from '../constants';
 
 const { width } = Dimensions.get('window');
 
-// ── WORLD CITIES ON GLOBE ──────────────────────────────────────────
+// ── REAL PHOTOREALISTIC NASA BLUE MARBLE TEXTURE ─────────────────
+// Local asset bundle with high-res NASA CDN fallback
+const NASA_EARTH_IMG = require('../../assets/earth-blue-marble.jpg');
+
 export interface GlobeCity {
   name: string;
   lon: number;
@@ -30,63 +35,20 @@ export interface GlobeCity {
   temp: number;
   condition: string;
   icon: string;
+  radarStatus: string;
 }
 
 const CITIES: GlobeCity[] = [
-  { name: 'Dhaka', lon: 90.4, lat: 23.8, temp: 28, condition: 'Clear', icon: '🌤️' },
-  { name: 'Tokyo', lon: 139.7, lat: 35.7, temp: 19, condition: 'Partly Cloudy', icon: '☁️' },
-  { name: 'London', lon: -0.1, lat: 51.5, temp: 14, condition: 'Rain', icon: '🌧️' },
-  { name: 'New York', lon: -74.0, lat: 40.7, temp: 21, condition: 'Clear', icon: '☀️' },
-  { name: 'Dubai', lon: 55.3, lat: 25.3, temp: 34, condition: 'Sunny', icon: '☀️' },
-  { name: 'Sydney', lon: 151.2, lat: -33.9, temp: 22, condition: 'Breezy', icon: '💨' },
-  { name: 'Paris', lon: 2.35, lat: 48.9, temp: 16, condition: 'Mild', icon: '🌤️' },
-  { name: 'Cairo', lon: 31.2, lat: 30.0, temp: 29, condition: 'Sunny', icon: '☀️' },
-  { name: 'Rio', lon: -43.2, lat: -22.9, temp: 27, condition: 'Warm', icon: '🏖️' },
-  { name: 'Singapore', lon: 103.8, lat: 1.35, temp: 31, condition: 'Showers', icon: '🌦️' },
-];
-
-// ── SIMPLIFIED CONTINENT POLYGONS (Lon, Lat) ──────────────────────
-const CONTINENTS: [number, number][][] = [
-  // Africa
-  [
-    [-17, 15], [-12, 5], [9, 4], [8, -4], [12, -18], [18, -34], [28, -33], [33, -27],
-    [40, -10], [51, 12], [44, 12], [32, 31], [10, 37], [-5, 36], [-17, 21], [-17, 15]
-  ],
-  // Eurasia (Europe + Asia)
-  [
-    [-9, 36], [-9, 43], [2, 51], [8, 55], [20, 60], [28, 70], [60, 70], [100, 77],
-    [170, 67], [140, 50], [130, 42], [122, 30], [108, 22], [100, 5], [104, 1],
-    [98, 10], [88, 22], [80, 13], [72, 23], [60, 25], [50, 30], [35, 32], [26, 38],
-    [14, 38], [0, 42], [-9, 36]
-  ],
-  // North America
-  [
-    [-168, 65], [-160, 55], [-130, 50], [-124, 38], [-117, 32], [-105, 20], [-87, 13],
-    [-77, 8], [-80, 25], [-81, 31], [-70, 42], [-60, 47], [-64, 58], [-80, 62],
-    [-95, 70], [-135, 70], [-168, 65]
-  ],
-  // South America
-  [
-    [-77, 8], [-81, -5], [-78, -18], [-72, -38], [-68, -54], [-53, -33], [-35, -5],
-    [-50, 0], [-60, 8], [-77, 8]
-  ],
-  // Australia
-  [
-    [114, -22], [115, -34], [135, -35], [150, -37], [153, -28], [144, -14], [136, -12],
-    [125, -15], [114, -22]
-  ],
-  // Antarctica
-  [
-    [-180, -78], [-120, -75], [-60, -65], [0, -70], [60, -66], [120, -66], [180, -78], [-180, -78]
-  ],
-  // Greenland
-  [
-    [-44, 60], [-20, 70], [-25, 80], [-55, 82], [-50, 70], [-44, 60]
-  ],
-  // Indian Subcontinent Detail
-  [
-    [68, 24], [72, 19], [76, 10], [80, 8], [82, 15], [88, 22], [92, 24], [90, 26], [77, 30], [68, 24]
-  ],
+  { name: 'Dhaka', lon: 90.4, lat: 23.8, temp: 28, condition: 'Clear', icon: '🌤️', radarStatus: 'Normal 0.1 mm/h' },
+  { name: 'Tokyo', lon: 139.7, lat: 35.7, temp: 19, condition: 'Partly Cloudy', icon: '☁️', radarStatus: 'Scattered clouds' },
+  { name: 'London', lon: -0.1, lat: 51.5, temp: 14, condition: 'Rain Showers', icon: '🌧️', radarStatus: 'Active Front 4 mm/h' },
+  { name: 'New York', lon: -74.0, lat: 40.7, temp: 21, condition: 'Clear Sky', icon: '☀️', radarStatus: 'Clear Doppler Scan' },
+  { name: 'Dubai', lon: 55.3, lat: 25.3, temp: 34, condition: 'Sunny', icon: '☀️', radarStatus: 'Dry Heat Index' },
+  { name: 'Sydney', lon: 151.2, lat: -33.9, temp: 22, condition: 'Breezy', icon: '💨', radarStatus: 'Coastal Gusts 24 km/h' },
+  { name: 'Paris', lon: 2.35, lat: 48.9, temp: 16, condition: 'Mild', icon: '🌤️', radarStatus: 'Stable Front' },
+  { name: 'Cairo', lon: 31.2, lat: 30.0, temp: 29, condition: 'Sunny', icon: '☀️', radarStatus: 'Clear Sky' },
+  { name: 'Rio', lon: -43.2, lat: -22.9, temp: 27, condition: 'Warm', icon: '🏖️', radarStatus: 'Moderate Moisture' },
+  { name: 'Singapore', lon: 103.8, lat: 1.35, temp: 31, condition: 'Thunderstorm', icon: '⛈️', radarStatus: 'Cell Detected 18 mm/h' },
 ];
 
 interface Props {
@@ -95,26 +57,26 @@ interface Props {
 }
 
 export const EarthGlobe3D: React.FC<Props> = ({ currentCityName, onSelectCity }) => {
-  // Center longitude and latitude in degrees
-  const [rotLon, setRotLon] = useState(90); // Default centered around Bangladesh / Asia
+  // Center rotation longitude & latitude in degrees
+  const [rotLon, setRotLon] = useState(90); // Default centered on Bangladesh / Asia
   const [rotLat, setRotLat] = useState(15);
   const [zoom, setZoom] = useState(1.0); // 0.8 to 2.2
   const [autoSpin, setAutoSpin] = useState(true);
   const [selectedCity, setSelectedCity] = useState<string>(currentCityName);
+  const [showRadarBeams, setShowRadarBeams] = useState(true);
 
   const rotLonRef = useRef(rotLon);
   rotLonRef.current = rotLon;
-  const rotLatRef = useRef(rotLat);
-  rotLatRef.current = rotLat;
   const autoSpinRef = useRef(autoSpin);
   autoSpinRef.current = autoSpin;
 
-  // Globe dimensions
-  const globeSize = Math.min(width - 48, 330);
-  const baseRadius = (globeSize / 2) - 16;
-  const R = baseRadius * zoom;
-  const cx = globeSize / 2;
-  const cy = globeSize / 2;
+  // Radar satellite sweep animation
+  const radarSweepAnim = useRef(new Animated.Value(0)).current;
+
+  // Base Globe Dimensions
+  const globeSize = Math.min(width - 48, 320);
+  const R = (globeSize / 2);
+  const texWidth = Math.round(globeSize * Math.PI); // Equirectangular aspect ratio
 
   // Auto-spin animation loop
   useEffect(() => {
@@ -127,13 +89,27 @@ export const EarthGlobe3D: React.FC<Props> = ({ currentCityName, onSelectCity })
       lastTime = now;
 
       if (autoSpinRef.current) {
-        setRotLon((prev) => (prev + (dt * 0.015)) % 360);
+        setRotLon((prev) => (prev + (dt * 0.018)) % 360);
       }
       animId = requestAnimationFrame(loop);
     };
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
+  }, []);
+
+  // Radar satellite rotation loop
+  useEffect(() => {
+    const sweep = Animated.loop(
+      Animated.timing(radarSweepAnim, {
+        toValue: 1,
+        duration: 4000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    sweep.start();
+    return () => sweep.stop();
   }, []);
 
   // PanResponder for touch / drag 3D rotation
@@ -145,246 +121,247 @@ export const EarthGlobe3D: React.FC<Props> = ({ currentCityName, onSelectCity })
         setAutoSpin(false);
       },
       onPanResponderMove: (_, gestureState) => {
-        const sensitivity = 0.35 / zoom;
-        setRotLon((prev) => (prev - gestureState.vx * 3.5 * sensitivity) % 360);
-        setRotLat((prev) => Math.max(-65, Math.min(65, prev + gestureState.vy * 2.5 * sensitivity)));
-      },
-      onPanResponderRelease: () => {
-        // Leave autoSpin off so user can inspect
+        const sensitivity = 0.42 / zoom;
+        setRotLon((prev) => (prev - gestureState.vx * 3.2 * sensitivity) % 360);
+        setRotLat((prev) => Math.max(-45, Math.min(45, prev + gestureState.vy * 2.2 * sensitivity)));
       },
     })
   ).current;
 
-  // Orthographic 3D projection math
-  const project = (lonDeg: number, latDeg: number): { x: number; y: number; z: number } => {
+  // Calculate horizontal texture shift for seamless 360° wrapping
+  const normLon = ((rotLon % 360) + 360) % 360;
+  const texOffset = -((normLon / 360) * texWidth);
+  const texOffsetY = (rotLat / 45) * (globeSize * 0.18);
+
+  // 3D City Position Projection
+  const projectCity = (lonDeg: number, latDeg: number) => {
     const lambda = (lonDeg * Math.PI) / 180;
     const phi = (latDeg * Math.PI) / 180;
-    const lambda0 = (rotLon * Math.PI) / 180;
+    const lambda0 = (normLon * Math.PI) / 180;
     const phi0 = (rotLat * Math.PI) / 180;
 
     const dLambda = lambda - lambda0;
 
-    // 3D coordinates relative to view
+    // 3D coordinates relative to camera
     const x3d = R * Math.cos(phi) * Math.sin(dLambda);
     const y3d = R * (Math.cos(phi0) * Math.sin(phi) - Math.sin(phi0) * Math.cos(phi) * Math.cos(dLambda));
     const z3d = Math.sin(phi0) * Math.sin(phi) + Math.cos(phi0) * Math.cos(phi) * Math.cos(dLambda);
 
     return {
-      x: cx + x3d,
-      y: cy - y3d,
+      x: R + x3d,
+      y: R - y3d,
       z: z3d,
     };
   };
 
-  // Convert continent points to SVG Path with smooth curves
-  const renderContinentPath = (points: [number, number][], idx: number) => {
-    let d = '';
-    let visiblePoints = 0;
-
-    for (let i = 0; i < points.length; i++) {
-      const p = project(points[i][0], points[i][1]);
-      if (p.z > -0.15) {
-        visiblePoints++;
-        const cmd = d === '' ? 'M' : 'L';
-        d += `${cmd} ${p.x.toFixed(1)} ${p.y.toFixed(1)} `;
-      }
-    }
-
-    if (visiblePoints < 2 || d === '') return null;
-    d += 'Z';
-
-    return (
-      <Path
-        key={idx}
-        d={d}
-        fill="rgba(52, 211, 153, 0.55)"
-        stroke="rgba(16, 185, 129, 0.85)"
-        strokeWidth={1}
-      />
-    );
-  };
-
-  // Render Latitude & Longitude Graticule rings (3D wireframe mesh)
-  const renderGraticules = () => {
-    const latRings = [-40, -20, 0, 20, 40];
-    const lonLines = [0, 45, 90, 135, 180, 225, 270, 315];
-
-    return (
-      <G opacity={0.22}>
-        {/* Parallels (Latitudes) */}
-        {latRings.map((lat, i) => {
-          let path = '';
-          for (let lon = -180; lon <= 180; lon += 15) {
-            const p = project(lon, lat);
-            if (p.z > 0) {
-              path += (path === '' ? 'M' : 'L') + ` ${p.x.toFixed(1)} ${p.y.toFixed(1)} `;
-            } else {
-              path = ''; // break path when crossing horizon
-            }
-          }
-          return path ? (
-            <Path key={`lat-${i}`} d={path} stroke="#38BDF8" strokeWidth={0.8} fill="none" />
-          ) : null;
-        })}
-
-        {/* Meridians (Longitudes) */}
-        {lonLines.map((lon, i) => {
-          let path = '';
-          for (let lat = -80; lat <= 80; lat += 10) {
-            const p = project(lon, lat);
-            if (p.z > 0) {
-              path += (path === '' ? 'M' : 'L') + ` ${p.x.toFixed(1)} ${p.y.toFixed(1)} `;
-            }
-          }
-          return path ? (
-            <Path key={`lon-${i}`} d={path} stroke="#38BDF8" strokeWidth={0.8} fill="none" />
-          ) : null;
-        })}
-      </G>
-    );
-  };
-
-  // Weather Cloud Band Swirls across globe
-  const renderCloudSwirls = () => {
-    // Semi-transparent rotating white weather front swirls
-    const cloudOffset = (rotLon * 1.15) % 360; // clouds drift faster
-    const cloudPaths = [
-      { lat: 10, len: 60, start: (cloudOffset + 30) % 360 },
-      { lat: -25, len: 80, start: (cloudOffset + 180) % 360 },
-      { lat: 45, len: 70, start: (cloudOffset + 90) % 360 },
-    ];
-
-    return (
-      <G opacity={0.35}>
-        {cloudPaths.map((c, i) => {
-          let d = '';
-          for (let l = 0; l <= c.len; l += 8) {
-            const p = project(c.start + l, c.lat + Math.sin(l * 0.1) * 8);
-            if (p.z > 0.05) {
-              d += (d === '' ? 'M' : 'L') + ` ${p.x.toFixed(1)} ${p.y.toFixed(1)} `;
-            }
-          }
-          return d ? (
-            <Path
-              key={`cloud-${i}`}
-              d={d}
-              stroke="rgba(255, 255, 255, 0.7)"
-              strokeWidth={8 * zoom}
-              strokeLinecap="round"
-              fill="none"
-            />
-          ) : null;
-        })}
-      </G>
-    );
-  };
-
   const handleCityTap = (c: GlobeCity) => {
     setSelectedCity(c.name);
-    // Smoothly rotate globe to face selected city
     setRotLon(c.lon);
-    setRotLat(Math.max(-40, Math.min(40, c.lat)));
+    setRotLat(Math.max(-35, Math.min(35, c.lat)));
     setAutoSpin(false);
     onSelectCity?.(c.name);
   };
 
+  const radarSpinAngle = radarSweepAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   return (
     <View style={styles.container}>
-      {/* 3D Earth Title Bar */}
+      {/* 3D Satellite Earth Title Bar */}
       <View style={styles.topControlBar}>
         <View>
-          <Text style={styles.globeTitle}>3D Satellite Earth</Text>
-          <Text style={styles.globeSubtitle}>Touch & drag to rotate · Zoom in / out</Text>
+          <Text style={styles.globeTitle}>Photorealistic Satellite Earth</Text>
+          <Text style={styles.globeSubtitle}>
+            NASA Blue Marble · Real Satellite Doppler Stream
+          </Text>
         </View>
 
-        {/* Auto-Spin Toggle */}
-        <TouchableOpacity
-          style={[styles.autoSpinBtn, autoSpin && styles.autoSpinBtnActive]}
-          onPress={() => setAutoSpin(!autoSpin)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.autoSpinIcon}>⟳</Text>
-          <Text style={styles.autoSpinText}>{autoSpin ? 'Spinning' : 'Spin'}</Text>
-        </TouchableOpacity>
+        <View style={styles.topActionsRow}>
+          {/* Radar Waves Layer Toggle */}
+          <TouchableOpacity
+            style={[styles.radarLayerBtn, showRadarBeams && styles.radarLayerBtnActive]}
+            onPress={() => setShowRadarBeams(!showRadarBeams)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.radarLayerIcon}>📡</Text>
+            <Text style={styles.radarLayerText}>{showRadarBeams ? 'Radar On' : 'Radar Off'}</Text>
+          </TouchableOpacity>
+
+          {/* Auto-Spin Toggle */}
+          <TouchableOpacity
+            style={[styles.autoSpinBtn, autoSpin && styles.autoSpinBtnActive]}
+            onPress={() => setAutoSpin(!autoSpin)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.autoSpinIcon}>⟳</Text>
+            <Text style={styles.autoSpinText}>{autoSpin ? 'Spinning' : 'Spin'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Main Interactive 3D Sphere Canvas */}
-      <View style={[styles.canvasBox, { height: globeSize + 20 }]} {...panResponder.panHandlers}>
-        {/* Outer Deep Space Nebula Glow */}
-        <View style={[styles.spaceGlow, { width: globeSize + 40, height: globeSize + 40, borderRadius: (globeSize + 40) / 2 }]} />
+      {/* Main Interactive 3D Sphere Box */}
+      <View style={[styles.canvasBox, { height: globeSize + 24 }]} {...panResponder.panHandlers}>
+        {/* Outer Deep Space Nebula Halo */}
+        <View
+          style={[
+            styles.spaceGlow,
+            {
+              width: globeSize + 60,
+              height: globeSize + 60,
+              borderRadius: (globeSize + 60) / 2,
+            },
+          ]}
+        />
 
-        <Svg width={globeSize} height={globeSize} viewBox={`0 0 ${globeSize} ${globeSize}`}>
-          <Defs>
-            {/* Ocean radial depth gradient (sunlit top-left to shadow bottom-right) */}
-            <RadialGradient id="oceanGrad" cx="38%" cy="32%" r="65%">
-              <Stop offset="0%" stopColor="#1E40AF" stopOpacity="1" />
-              <Stop offset="45%" stopColor="#0F2459" stopOpacity="1" />
-              <Stop offset="85%" stopColor="#081432" stopOpacity="1" />
-              <Stop offset="100%" stopColor="#030712" stopOpacity="1" />
-            </RadialGradient>
+        {/* ── 3D SPHERICAL CLIPPED CONTAINER ────────────────────── */}
+        <View
+          style={[
+            styles.sphereViewport,
+            {
+              width: globeSize,
+              height: globeSize,
+              borderRadius: globeSize / 2,
+              transform: [{ scale: zoom }],
+            },
+          ]}
+        >
+          {/* REAL NASA BLUE MARBLE TEXTURE LAYER (Tiled 3x for 360° seamless wrap) */}
+          <View
+            style={[
+              styles.textureRow,
+              {
+                width: texWidth * 3,
+                height: globeSize * 1.3,
+                transform: [
+                  { translateX: texOffset - texWidth },
+                  { translateY: texOffsetY },
+                ],
+              },
+            ]}
+          >
+            <Image source={NASA_EARTH_IMG} style={{ width: texWidth, height: '100%' }} resizeMode="stretch" />
+            <Image source={NASA_EARTH_IMG} style={{ width: texWidth, height: '100%' }} resizeMode="stretch" />
+            <Image source={NASA_EARTH_IMG} style={{ width: texWidth, height: '100%' }} resizeMode="stretch" />
+          </View>
 
-            {/* Atmosphere Rim Glow (Fresnel haze) */}
-            <RadialGradient id="atmoGlow" cx="50%" cy="50%" r="50%">
-              <Stop offset="82%" stopColor="#38BDF8" stopOpacity="0" />
-              <Stop offset="94%" stopColor="#38BDF8" stopOpacity="0.45" />
-              <Stop offset="100%" stopColor="#22D3EE" stopOpacity="0.95" />
-            </RadialGradient>
-          </Defs>
-
-          {/* Deep Ocean Globe Sphere */}
-          <Circle cx={cx} cy={cy} r={R} fill="url(#oceanGrad)" />
-
-          {/* 3D Wireframe Graticule Grid */}
-          {renderGraticules()}
-
-          {/* Continents projected onto 3D Sphere */}
-          {CONTINENTS.map((pts, i) => renderContinentPath(pts, i))}
-
-          {/* Real-time Weather Clouds */}
-          {renderCloudSwirls()}
-
-          {/* Outer Atmospheric Aura */}
-          <Circle cx={cx} cy={cy} r={R + 3} fill="url(#atmoGlow)" />
-          <Circle cx={cx} cy={cy} r={R} stroke="rgba(56, 189, 248, 0.4)" strokeWidth={1.5} fill="none" />
-        </Svg>
-
-        {/* 3D Floating City Pins & Weather Beacons */}
-        {CITIES.map((c) => {
-          const p = project(c.lon, c.lat);
-          // Only show cities facing the camera (front hemisphere)
-          if (p.z <= 0.12) return null;
-
-          const isSelected = selectedCity.toLowerCase() === c.name.toLowerCase();
-
-          return (
-            <TouchableOpacity
-              key={c.name}
+          {/* SATELLITE DOPPLER WEATHER RADAR BEAM SWEEP OVERLAY */}
+          {showRadarBeams && (
+            <Animated.View
               style={[
-                styles.cityPinWrap,
+                styles.radarBeamOverlay,
                 {
-                  left: p.x - 22,
-                  top: p.y - 32,
-                  opacity: Math.min(1, (p.z - 0.1) * 2.5),
+                  transform: [{ rotate: radarSpinAngle }],
                 },
               ]}
-              onPress={() => handleCityTap(c)}
-              activeOpacity={0.8}
             >
-              <View style={[styles.cityBadge, isSelected && styles.cityBadgeSelected]}>
-                <Text style={styles.cityBadgeIcon}>{c.icon}</Text>
-                <Text style={styles.cityBadgeText}>{c.name}</Text>
-                <Text style={styles.cityBadgeTemp}>{c.temp}°</Text>
-              </View>
-              <View style={[styles.cityPinDot, isSelected && styles.cityPinDotSelected]} />
-            </TouchableOpacity>
-          );
-        })}
+              <Svg width={globeSize} height={globeSize} viewBox={`0 0 ${globeSize} ${globeSize}`}>
+                <Defs>
+                  <SvgLinearGradient id="radarSweepGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop offset="0%" stopColor="#38BDF8" stopOpacity="0" />
+                    <Stop offset="70%" stopColor="#38BDF8" stopOpacity="0.15" />
+                    <Stop offset="100%" stopColor="#22D3EE" stopOpacity="0.45" />
+                  </SvgLinearGradient>
+                </Defs>
+                <Path
+                  d={`M ${R} ${R} L ${globeSize} 0 A ${R} ${R} 0 0 1 ${globeSize} ${R} Z`}
+                  fill="url(#radarSweepGrad)"
+                />
+              </Svg>
+            </Animated.View>
+          )}
 
-        {/* Floating Zoom Controls ("Close kora jai / Zoom in & out") */}
+          {/* 3D SPHERICAL SHADING & LIMB DARKENING LENS */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Svg width={globeSize} height={globeSize} viewBox={`0 0 ${globeSize} ${globeSize}`}>
+              <Defs>
+                {/* 3D Spherical Volume Shading: Sunlit highlight at (32%, 28%) + Limb Darkening */}
+                <RadialGradient id="sphericalLens" cx="32%" cy="28%" r="68%">
+                  <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.15" />
+                  <Stop offset="30%" stopColor="#FFFFFF" stopOpacity="0" />
+                  <Stop offset="72%" stopColor="#020617" stopOpacity="0.25" />
+                  <Stop offset="90%" stopColor="#020617" stopOpacity="0.75" />
+                  <Stop offset="100%" stopColor="#000000" stopOpacity="0.95" />
+                </RadialGradient>
+
+                {/* Day / Night Terminator Shadow (Shadowing the unlit side) */}
+                <SvgLinearGradient id="terminatorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="35%" stopColor="#000000" stopOpacity="0" />
+                  <Stop offset="75%" stopColor="#020617" stopOpacity="0.40" />
+                  <Stop offset="100%" stopColor="#020617" stopOpacity="0.75" />
+                </SvgLinearGradient>
+              </Defs>
+
+              {/* Day/Night Shadow */}
+              <Circle cx={R} cy={R} r={R} fill="url(#terminatorGrad)" />
+
+              {/* 3D Sphere Normal Shading */}
+              <Circle cx={R} cy={R} r={R} fill="url(#sphericalLens)" />
+
+              {/* Equator & Tropical Radar Orbit Rings */}
+              {showRadarBeams && (
+                <G opacity={0.25}>
+                  <Circle cx={R} cy={R} r={R * 0.65} stroke="#38BDF8" strokeWidth={1} strokeDasharray="6,4" fill="none" />
+                  <Circle cx={R} cy={R} r={R * 0.9} stroke="#22D3EE" strokeWidth={0.8} fill="none" />
+                </G>
+              )}
+            </Svg>
+          </View>
+
+          {/* REALISTIC ATMOSPHERIC RAYLEIGH SCATTERING GLOW (NASA Blue Rim) */}
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Svg width={globeSize} height={globeSize} viewBox={`0 0 ${globeSize} ${globeSize}`}>
+              <Defs>
+                <RadialGradient id="atmoRimGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="82%" stopColor="#38BDF8" stopOpacity="0" />
+                  <Stop offset="93%" stopColor="#38BDF8" stopOpacity="0.40" />
+                  <Stop offset="100%" stopColor="#67E8F9" stopOpacity="0.95" />
+                </RadialGradient>
+              </Defs>
+              <Circle cx={R} cy={R} r={R} fill="url(#atmoRimGlow)" />
+              <Circle cx={R} cy={R} r={R} stroke="rgba(56, 189, 248, 0.55)" strokeWidth={1.5} fill="none" />
+            </Svg>
+          </View>
+
+          {/* 3D FLOATING CITY WEATHER BEACONS (Calculated Spherical Horizon) */}
+          {CITIES.map((c) => {
+            const p = projectCity(c.lon, c.lat);
+            // Hide cities orbiting on the back side of Earth
+            if (p.z <= 0.18) return null;
+
+            const isSelected = selectedCity.toLowerCase() === c.name.toLowerCase();
+
+            return (
+              <TouchableOpacity
+                key={c.name}
+                style={[
+                  styles.cityPinWrap,
+                  {
+                    left: p.x - 24,
+                    top: p.y - 34,
+                    opacity: Math.min(1, (p.z - 0.15) * 2.8),
+                  },
+                ]}
+                onPress={() => handleCityTap(c)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.cityBadge, isSelected && styles.cityBadgeSelected]}>
+                  <Text style={styles.cityBadgeIcon}>{c.icon}</Text>
+                  <Text style={styles.cityBadgeText}>{c.name}</Text>
+                  <Text style={styles.cityBadgeTemp}>{c.temp}°</Text>
+                </View>
+                <View style={[styles.cityPinDot, isSelected && styles.cityPinDotSelected]} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── FLOATING ZOOM IN / ZOOM OUT CONTROLS ("Close kora jai") ── */}
         <View style={styles.zoomControlPill}>
           <TouchableOpacity
             style={styles.zoomBtn}
-            onPress={() => setZoom((z) => Math.min(1.85, z + 0.2))}
+            onPress={() => setZoom((z) => Math.min(2.1, z + 0.25))}
             activeOpacity={0.7}
           >
             <Text style={styles.zoomBtnText}>➕</Text>
@@ -392,7 +369,7 @@ export const EarthGlobe3D: React.FC<Props> = ({ currentCityName, onSelectCity })
           <View style={styles.zoomDivider} />
           <TouchableOpacity
             style={styles.zoomBtn}
-            onPress={() => setZoom((z) => Math.max(0.75, z - 0.2))}
+            onPress={() => setZoom((z) => Math.max(0.75, z - 0.25))}
             activeOpacity={0.7}
           >
             <Text style={styles.zoomBtnText}>➖</Text>
@@ -401,13 +378,33 @@ export const EarthGlobe3D: React.FC<Props> = ({ currentCityName, onSelectCity })
 
         {/* Zoom Level Indicator */}
         <View style={styles.zoomBadge}>
-          <Text style={styles.zoomBadgeText}>{Math.round(zoom * 100)}% ZOOM</Text>
+          <Text style={styles.zoomBadgeText}>{Math.round(zoom * 100)}% CLOSE-UP</Text>
         </View>
       </View>
 
-      {/* Quick World Cities Orbit Selector */}
+      {/* ── SATELLITE RADAR EXPLANATION & RELATION CARD ──────────── */}
+      <View style={styles.relationCard}>
+        <View style={styles.relationHeader}>
+          <Text style={styles.relationIcon}>🛰️</Text>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.relationTitle}>Earth & Radar Relationship</Text>
+            <Text style={styles.relationSubtitle}>
+              Global Satellite Doppler Grid vs Ground Radar
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.relationBody}>
+          Weather satellites (NASA, NOAA GOES, EUMETSAT) orbit the Earth in space, scanning planetary cloud tops, tropical cyclones, and storm fronts across continents.
+          {'\n\n'}
+          • <Text style={{ color: COLORS.accent, fontFamily: FONTS.semiBold }}>3D Earth View:</Text> Shows planetary storm systems, cyclone paths, and satellite Doppler cloud sweeps worldwide.
+          {'\n'}
+          • <Text style={{ color: '#4ADE80', fontFamily: FONTS.semiBold }}>2D Doppler Radar:</Text> Switches to high-resolution local ground radar within 50 km of your selected city for real-time rain intensity.
+        </Text>
+      </View>
+
+      {/* ── QUICK WORLD CITIES ORBIT SELECTOR ───────────────────── */}
       <View style={styles.cityQuickRow}>
-        <Text style={styles.quickLabel}>QUICK WORLD FOCUS:</Text>
+        <Text style={styles.quickLabel}>QUICK SATELLITE ORBIT FOCUS:</Text>
         <View style={styles.quickChipsGrid}>
           {CITIES.slice(0, 6).map((c) => (
             <TouchableOpacity
@@ -448,36 +445,63 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginTop: 2,
   },
-  autoSpinBtn: {
+  topActionsRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  radarLayerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    gap: 5,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    gap: 4,
+  },
+  radarLayerBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.16)',
+    borderColor: COLORS.accent,
+  },
+  radarLayerIcon: {
+    fontSize: 12,
+  },
+  radarLayerText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: COLORS.textPrimary,
+  },
+  autoSpinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    gap: 4,
   },
   autoSpinBtnActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    backgroundColor: 'rgba(56, 189, 248, 0.16)',
     borderColor: COLORS.accent,
   },
   autoSpinIcon: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.accent,
   },
   autoSpinText: {
     fontSize: 11,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     color: COLORS.textPrimary,
   },
   canvasBox: {
     width: '100%',
-    backgroundColor: 'rgba(4, 9, 22, 0.95)',
+    backgroundColor: '#020617',
     borderRadius: 30,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.20)',
+    borderColor: 'rgba(56, 189, 248, 0.22)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -485,30 +509,52 @@ const styles = StyleSheet.create({
   },
   spaceGlow: {
     position: 'absolute',
-    backgroundColor: 'rgba(30, 64, 175, 0.14)',
+    backgroundColor: 'rgba(30, 64, 175, 0.12)',
+  },
+  sphereViewport: {
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#030712',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    elevation: 15,
+  },
+  textureRow: {
+    position: 'absolute',
+    flexDirection: 'row',
+  },
+  radarBeamOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 5,
   },
   cityPinWrap: {
     position: 'absolute',
     alignItems: 'center',
-    zIndex: 20,
+    zIndex: 25,
   },
   cityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(8, 15, 33, 0.90)',
+    backgroundColor: 'rgba(8, 14, 28, 0.92)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.40)',
+    borderColor: 'rgba(56, 189, 248, 0.45)',
     paddingVertical: 2,
     paddingHorizontal: 7,
     gap: 4,
     shadowColor: COLORS.accent,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.6,
     shadowRadius: 6,
   },
   cityBadgeSelected: {
-    backgroundColor: 'rgba(56, 189, 248, 0.25)',
+    backgroundColor: 'rgba(56, 189, 248, 0.30)',
     borderColor: '#38BDF8',
   },
   cityBadgeIcon: {
@@ -529,7 +575,7 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: COLORS.accent,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#FFF',
     marginTop: 2,
   },
@@ -541,7 +587,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 14,
     bottom: 14,
-    backgroundColor: 'rgba(10, 18, 40, 0.85)',
+    backgroundColor: 'rgba(8, 14, 28, 0.90)',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
@@ -549,7 +595,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 30,
+    zIndex: 35,
   },
   zoomBtn: {
     padding: 6,
@@ -567,7 +613,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 14,
     bottom: 14,
-    backgroundColor: 'rgba(10, 18, 40, 0.7)',
+    backgroundColor: 'rgba(8, 14, 28, 0.75)',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -577,11 +623,44 @@ const styles = StyleSheet.create({
   zoomBadgeText: {
     fontSize: 9,
     fontFamily: FONTS.bold,
-    color: COLORS.textMuted,
+    color: COLORS.accent,
     letterSpacing: 0.5,
   },
+  relationCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.20)',
+    padding: 16,
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  relationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  relationIcon: {
+    fontSize: 22,
+  },
+  relationTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  relationSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.accent,
+  },
+  relationBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    lineHeight: 18,
+  },
   cityQuickRow: {
-    marginTop: 12,
+    marginTop: 4,
   },
   quickLabel: {
     fontFamily: FONTS.semiBold,

@@ -198,7 +198,11 @@ const styles = StyleSheet.create({
     minWidth: 58,
   },
   activePill: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(56, 189, 248, 0.16)',
     borderRadius: 20,
     borderWidth: 1,

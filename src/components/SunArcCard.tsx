@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { COLORS, FONTS } from '../constants';
 
 interface Props {
@@ -80,10 +80,10 @@ export const SunArcCard: React.FC<Props> = ({ sunrise, sunset }) => {
               <Stop offset="0" stopColor={COLORS.amber} stopOpacity="0.9" />
               <Stop offset="1" stopColor={COLORS.orange} stopOpacity="0.9" />
             </SvgGradient>
-            <SvgGradient id="sunGlowGrad" cx="0.5" cy="0.5" r="0.5">
+            <RadialGradient id="sunGlowGrad" cx="0.5" cy="0.5" r="0.5">
               <Stop offset="0" stopColor="#FBBF24" stopOpacity="0.5" />
               <Stop offset="1" stopColor="#FBBF24" stopOpacity="0" />
-            </SvgGradient>
+            </RadialGradient>
           </Defs>
 
           {/* Horizon line */}
