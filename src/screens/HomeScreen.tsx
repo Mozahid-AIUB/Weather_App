@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWeatherStore } from '../store/weatherStore';
 import { useLocation } from '../hooks/useLocation';
 import { ForecastCard } from '../components/ForecastCard';
@@ -81,7 +82,9 @@ export const HomeScreen: React.FC = () => {
   const [searchVisible, setSearchVisible] = useState(false);
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
-  const [selectedCityChip, setSelectedCityChip] = useState('New York');
+  const [selectedCityChip, setSelectedCityChip] = useState('My Location');
+  const [isCurrentGps, setIsCurrentGps] = useState(true);
+  const [isLocating, setIsLocating] = useState(false);
   const { location, requestLocation } = useLocation();
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -99,6 +102,7 @@ export const HomeScreen: React.FC = () => {
     isLoading,
     isRefreshing,
     unit,
+    recentCities,
     fetchWeatherByCity,
     fetchWeatherByCoords,
     refreshWeather,
@@ -106,9 +110,60 @@ export const HomeScreen: React.FC = () => {
     toggleUnit,
   } = useWeatherStore();
 
+  const handleRequestGps = async () => {
+    setIsLocating(true);
+    try {
+      const coords = await requestLocation();
+      if (coords) {
+        setIsCurrentGps(true);
+        setSelectedCityChip('My Location');
+        await fetchWeatherByCoords(coords.lat, coords.lon);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
+  // Auto-detect GPS location on startup with smart fallback
   useEffect(() => {
     loadSearchHistory();
-    fetchWeatherByCity('New York');
+    (async () => {
+      setIsLocating(true);
+      try {
+        const coords = await requestLocation();
+        if (coords) {
+          setIsCurrentGps(true);
+          setSelectedCityChip('My Location');
+          await fetchWeatherByCoords(coords.lat, coords.lon);
+          return;
+        }
+      } catch {
+        // fallback
+      } finally {
+        setIsLocating(false);
+      }
+
+      // If location is denied or unavailable, check recently searched cities
+      try {
+        const stored = await AsyncStorage.getItem('recent_cities');
+        const recents = stored ? JSON.parse(stored) : [];
+        if (recents && recents.length > 0) {
+          setIsCurrentGps(false);
+          setSelectedCityChip(recents[0]);
+          await fetchWeatherByCity(recents[0]);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      // Default fallback
+      setIsCurrentGps(false);
+      setSelectedCityChip('Dhaka');
+      await fetchWeatherByCity('Dhaka');
+    })();
   }, []);
 
   // Premium entrance animation sequence
@@ -126,15 +181,17 @@ export const HomeScreen: React.FC = () => {
 
   useEffect(() => {
     if (location) {
+      setIsCurrentGps(true);
       fetchWeatherByCoords(location.lat, location.lon);
     }
-  }, [location]);
+  }, [location?.lat, location?.lon]);
 
   const onRefresh = useCallback(() => {
     refreshWeather();
   }, [refreshWeather]);
 
   const handleCitySelect = (city: string) => {
+    setIsCurrentGps(false);
     setSelectedCityChip(city);
     // Reset animations
     heroScale.setValue(0.95);
@@ -215,14 +272,16 @@ export const HomeScreen: React.FC = () => {
 
         {/* Ultra-Premium App Header */}
         <Animated.View style={[styles.header, { transform: [{ translateY: headerSlide }] }]}>
-          <View>
+          <TouchableOpacity onPress={() => setSearchVisible(true)} activeOpacity={0.8}>
             <Text style={styles.appName}>WeatherNow</Text>
-            {currentWeather && (
+            {currentWeather ? (
               <Text style={styles.locationLabel}>
-                📍 {currentWeather.name}, {currentWeather.sys.country}
+                {isCurrentGps ? '📍 My Location · ' : '🌍 '}{currentWeather.name}, {currentWeather.sys.country} ▾
               </Text>
+            ) : (
+              <Text style={styles.locationLabel}>📍 Detecting location...</Text>
             )}
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.unitBtn}
@@ -243,16 +302,20 @@ export const HomeScreen: React.FC = () => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => requestLocation()}
+              style={[styles.iconBtn, isLocating && styles.iconBtnActive]}
+              onPress={handleRequestGps}
               accessibilityLabel="Use my GPS location"
             >
-              <Text style={styles.iconBtnText}>📍</Text>
+              {isLocating ? (
+                <ActivityIndicator size="small" color={COLORS.accent} />
+              ) : (
+                <Text style={styles.iconBtnText}>📍</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => setSearchVisible(true)}
-              accessibilityLabel="Search city"
+              accessibilityLabel="Search any location"
             >
               <Text style={styles.iconBtnText}>🔍</Text>
             </TouchableOpacity>
@@ -262,7 +325,7 @@ export const HomeScreen: React.FC = () => {
         {/* Tab Router Switcher */}
         {activeTab === 'radar' ? (
           <RadarView
-            cityName={currentWeather?.name || 'New York'}
+            cityName={currentWeather?.name || 'Dhaka'}
             temp={currentWeather?.main.temp || 20}
             condition={conditionType}
             unit={unit}
@@ -275,7 +338,7 @@ export const HomeScreen: React.FC = () => {
           />
         ) : activeTab === 'insights' ? (
           <InsightsView
-            cityName={currentWeather?.name || 'New York'}
+            cityName={currentWeather?.name || 'Dhaka'}
             unit={unit}
           />
         ) : activeTab === 'settings' ? (
@@ -286,11 +349,47 @@ export const HomeScreen: React.FC = () => {
         ) : (
           /* Main Weather View */
           <>
-            {/* US Metro Quick City Filter */}
+            {/* Quick Live Search Bar Trigger */}
+            <View style={styles.searchTriggerRow}>
+              <TouchableOpacity
+                style={styles.searchTriggerBtn}
+                onPress={() => setSearchVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.searchTriggerIcon}>🔍</Text>
+                <Text style={styles.searchTriggerPlaceholder}>Search any city or country worldwide...</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.gpsTriggerBtn, isLocating && styles.gpsTriggerBtnActive]}
+                onPress={handleRequestGps}
+                activeOpacity={0.7}
+              >
+                {isLocating ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.gpsTriggerIcon}>📍</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Dynamic City Filter (Current Location + Recent Searches + Global Hubs) */}
             <Animated.View style={[styles.chipsContainer, { transform: [{ translateY: chipsSlide }] }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-                {US_POPULAR_CITIES.map((city) => {
-                  const isActive = currentWeather?.name.toLowerCase().includes(city.toLowerCase());
+                {/* 1. Live GPS Location Chip */}
+                <TouchableOpacity
+                  style={[styles.cityChip, isCurrentGps && styles.cityChipGpsActive]}
+                  onPress={handleRequestGps}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.gpsDot, isCurrentGps && styles.gpsDotActive]} />
+                  <Text style={[styles.cityChipText, isCurrentGps && styles.cityChipTextActive]}>
+                    My Location
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 2. Dynamic Recent Searched Cities */}
+                {recentCities.map((city) => {
+                  const isActive = !isCurrentGps && currentWeather?.name.toLowerCase() === city.toLowerCase();
                   return (
                     <TouchableOpacity
                       key={city}
@@ -304,6 +403,34 @@ export const HomeScreen: React.FC = () => {
                     </TouchableOpacity>
                   );
                 })}
+
+                {/* 3. Global Popular Cities */}
+                {['Dhaka', 'London', 'Tokyo', 'New York', 'Dubai', 'Paris']
+                  .filter((c) => !recentCities.some((rc) => rc.toLowerCase() === c.toLowerCase()))
+                  .map((city) => {
+                    const isActive = !isCurrentGps && currentWeather?.name.toLowerCase().includes(city.toLowerCase());
+                    return (
+                      <TouchableOpacity
+                        key={city}
+                        style={[styles.cityChip, isActive && styles.cityChipActive]}
+                        onPress={() => handleCitySelect(city)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.cityChipText, isActive && styles.cityChipTextActive]}>
+                          {city}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                {/* 4. Search More Button */}
+                <TouchableOpacity
+                  style={[styles.cityChip, styles.cityChipSearchMore]}
+                  onPress={() => setSearchVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cityChipTextSearchMore}>+ Search</Text>
+                </TouchableOpacity>
               </ScrollView>
             </Animated.View>
 
@@ -530,24 +657,13 @@ export const HomeScreen: React.FC = () => {
         windSpeed={currentWeather?.wind.speed || 4}
       />
 
-      {/* Search Modal */}
-      <Modal
+      {/* Dynamic Worldwide Search Modal */}
+      <SearchBar
         visible={searchVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setSearchVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setSearchVisible(false)}
-        />
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Search Any City</Text>
-          <SearchBar onClose={() => setSearchVisible(false)} />
-        </View>
-      </Modal>
+        onClose={() => setSearchVisible(false)}
+        onRequestGps={handleRequestGps}
+        isLocating={isLocating}
+      />
     </LinearGradient>
   );
 };
@@ -811,34 +927,81 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
 
-  // ── MODALS ────────────────────
-  modalOverlay: {
+  // ── SEARCH & GPS TRIGGERS ────────────
+  searchTriggerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 10,
+    gap: 10,
+  },
+  searchTriggerBtn: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  modalSheet: {
-    backgroundColor: '#0A0F1D',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 24,
-    paddingBottom: 40,
-    borderTopWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 16,
+    borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.10)',
-    minHeight: 450,
+    paddingHorizontal: 14,
+    height: 44,
   },
-  modalHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
+  searchTriggerIcon: {
+    fontSize: 15,
+    marginRight: 8,
   },
-  modalTitle: {
-    fontSize: 22,
-    color: '#FFF',
-    fontFamily: FONTS.bold,
-    fontWeight: '700',
-    marginBottom: 16,
+  searchTriggerPlaceholder: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textMuted,
+    flex: 1,
+  },
+  gpsTriggerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.30)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gpsTriggerBtnActive: {
+    backgroundColor: COLORS.accent,
+  },
+  gpsTriggerIcon: {
+    fontSize: 18,
+  },
+  iconBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.20)',
+    borderColor: COLORS.accent,
+  },
+  cityChipGpsActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    borderColor: COLORS.accent,
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+  },
+  gpsDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: COLORS.textMuted,
+    marginRight: 6,
+  },
+  gpsDotActive: {
+    backgroundColor: COLORS.cyan,
+  },
+  cityChipSearchMore: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    borderStyle: 'dashed',
+  },
+  cityChipTextSearchMore: {
+    fontFamily: FONTS.medium,
+    fontSize: 12.5,
+    color: COLORS.accent,
   },
 });

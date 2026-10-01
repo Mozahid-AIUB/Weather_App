@@ -22,8 +22,26 @@ const mapWmoToWeather = (code: number, isDay: boolean = true) => {
   return { id: 800, main: 'Clear', description: 'Clear sky', icon: `01${d}` };
 };
 
-// Open-Meteo fallback fetcher
+// Open-Meteo fallback fetcher with automatic reverse-geocoding
 const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = 'Current Location', country: string = 'BD') => {
+  let resolvedCity = cityName;
+  let resolvedCountry = country;
+
+  if (!cityName || cityName === 'Current Location' || cityName === 'Your Location') {
+    try {
+      const geo = await axios.get(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+        { timeout: 3500 }
+      );
+      if (geo.data) {
+        resolvedCity = geo.data.city || geo.data.locality || geo.data.principalSubdivision || 'My Location';
+        resolvedCountry = geo.data.countryCode || country;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto`;
   const res = await axios.get(url);
   const data = res.data;
@@ -33,7 +51,7 @@ const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = 'Curr
   const weatherCond = mapWmoToWeather(current.weather_code, isDay);
 
   const currentWeather: CurrentWeather = {
-    name: cityName,
+    name: resolvedCity,
     dt: Math.floor(Date.now() / 1000),
     main: {
       temp: current.temperature_2m,
