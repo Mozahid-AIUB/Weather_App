@@ -9,6 +9,21 @@ export const OPENWEATHER_BASE_URL = 'https://api.openweathermap.org/data/2.5';
 // ============================================
 export const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || 'http://YOUR_VPS_IP:3001/api';
 
+// ============================================
+// PREMIUM FONT FAMILY SYSTEM
+// ============================================
+export const FONTS = {
+  light: 'Outfit_300Light',
+  regular: 'Outfit_400Regular',
+  medium: 'Outfit_500Medium',
+  semiBold: 'Outfit_600SemiBold',
+  bold: 'Outfit_700Bold',
+  extraBold: 'Outfit_800ExtraBold',
+};
+
+// ============================================
+// PREMIUM DESIGN TOKENS
+// ============================================
 export const COLORS = {
   // Ultra-Luxury Dark Palette
   bgDark: '#030712',
@@ -24,6 +39,12 @@ export const COLORS = {
   amber: '#F59E0B',
   emerald: '#10B981',
   rose: '#F43F5E',
+  teal: '#14B8A6',
+  sky: '#7DD3FC',
+  violet: '#8B5CF6',
+  fuchsia: '#D946EF',
+  lime: '#84CC16',
+  orange: '#F97316',
 
   // Luxury Glassmorphic Surfaces
   cardBg: 'rgba(255, 255, 255, 0.05)',
@@ -32,6 +53,8 @@ export const COLORS = {
   cardBorderLight: 'rgba(255, 255, 255, 0.18)',
   cardGlass: 'rgba(56, 189, 248, 0.08)',
   cardGlassDark: 'rgba(15, 23, 42, 0.75)',
+  glassHighlight: 'rgba(255, 255, 255, 0.12)',
+  glassFrost: 'rgba(255, 255, 255, 0.03)',
 
   // High-End Typography
   textPrimary: '#FFFFFF',

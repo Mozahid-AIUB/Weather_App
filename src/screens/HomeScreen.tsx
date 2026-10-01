@@ -12,6 +12,7 @@ import {
   FlatList,
   Dimensions,
   Animated,
+  Easing,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,9 +31,13 @@ import { InsightsView } from '../components/InsightsView';
 import { SettingsView } from '../components/SettingsView';
 import { AiPushControlModal } from '../components/AiPushControlModal';
 import { SearchBar } from '../components/SearchBar';
-import { COLORS, WEATHER_ICONS } from '../constants';
+import { WindCompassCard } from '../components/WindCompassCard';
+import { SunArcCard } from '../components/SunArcCard';
+import { PrecipitationChart } from '../components/PrecipitationChart';
+import { FeelsLikeGauge } from '../components/FeelsLikeGauge';
+import { COLORS, FONTS, WEATHER_ICONS } from '../constants';
 
-const { width } = Dimensions.get('window');
+const { width, height: screenH } = Dimensions.get('window');
 
 // Curated US Top Metro Cities
 const US_POPULAR_CITIES = ['New York', 'Los Angeles', 'Miami', 'Chicago', 'Dallas', 'San Francisco', 'Seattle', 'Las Vegas'];
@@ -50,18 +55,18 @@ const getWeatherConditionType = (iconCode: string): string => {
 const getGradientForWeather = (conditionType: string): string[] => {
   switch (conditionType) {
     case 'sunny':
-      return ['#0F2B48', '#1A4870', '#0284C7'];
+      return ['#0C1833', '#143566', '#0B6DB5'];
     case 'night':
-      return ['#030712', '#0A1128', '#111E38'];
+      return ['#020617', '#070E1F', '#0C1629'];
     case 'rainy':
-      return ['#081224', '#0F213A', '#1E3A5F'];
+      return ['#060C1C', '#0D1830', '#162D52'];
     case 'stormy':
-      return ['#09090B', '#18181B', '#27272A'];
+      return ['#07070A', '#111115', '#1A1A20'];
     case 'snowy':
-      return ['#0C192E', '#1E293B', '#334155'];
+      return ['#0A1424', '#172033', '#293D56'];
     case 'cloudy':
     default:
-      return ['#0B132B', '#16223B', '#24344E'];
+      return ['#0A0F22', '#131D33', '#1D2D48'];
   }
 };
 
@@ -80,6 +85,13 @@ export const HomeScreen: React.FC = () => {
   const { location, requestLocation } = useLocation();
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
+  // Premium entrance animations
+  const heroScale = useRef(new Animated.Value(0.9)).current;
+  const heroOpacity = useRef(new Animated.Value(0)).current;
+  const headerSlide = useRef(new Animated.Value(-20)).current;
+  const chipsSlide = useRef(new Animated.Value(30)).current;
+  const contentSlide = useRef(new Animated.Value(40)).current;
+
   const {
     currentWeather,
     dailyForecast,
@@ -96,9 +108,21 @@ export const HomeScreen: React.FC = () => {
 
   useEffect(() => {
     loadSearchHistory();
-    // Default initial fetch for US market
     fetchWeatherByCity('New York');
   }, []);
+
+  // Premium entrance animation sequence
+  useEffect(() => {
+    if (currentWeather) {
+      Animated.parallel([
+        Animated.spring(heroScale, { toValue: 1, tension: 50, friction: 8, useNativeDriver: false }),
+        Animated.timing(heroOpacity, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+        Animated.timing(headerSlide, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+        Animated.timing(chipsSlide, { toValue: 0, duration: 600, delay: 100, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+        Animated.timing(contentSlide, { toValue: 0, duration: 700, delay: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      ]).start();
+    }
+  }, [currentWeather?.name]);
 
   useEffect(() => {
     if (location) {
@@ -112,10 +136,17 @@ export const HomeScreen: React.FC = () => {
 
   const handleCitySelect = (city: string) => {
     setSelectedCityChip(city);
-    Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 0.3, duration: 150, useNativeDriver: false }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+    // Reset animations
+    heroScale.setValue(0.95);
+    heroOpacity.setValue(0.3);
+    contentSlide.setValue(20);
+
+    Animated.parallel([
+      Animated.spring(heroScale, { toValue: 1, tension: 60, friction: 8, useNativeDriver: false }),
+      Animated.timing(heroOpacity, { toValue: 1, duration: 400, useNativeDriver: false }),
+      Animated.timing(contentSlide, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
     ]).start();
+
     fetchWeatherByCity(city);
     setActiveTab('weather');
   };
@@ -162,12 +193,19 @@ export const HomeScreen: React.FC = () => {
     ? Math.max(...dailyForecast.map((d) => unit === 'imperial' ? Math.round((d.high * 9) / 5 + 32) : d.high))
     : 85;
 
+  // Prepare precipitation data from hourly forecast
+  const precipData = hourlyForecast.slice(0, 12).map((h) => ({
+    time: h.time,
+    pop: h.pop || 0,
+    icon: h.icon,
+  }));
+
   return (
     <LinearGradient
       colors={gradient}
       style={styles.root}
       start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+      end={{ x: 0.3, y: 1 }}
     >
       {/* High-End Animated Weather Particle Layer */}
       <AnimatedWeatherBackground condition={conditionType} />
@@ -175,8 +213,8 @@ export const HomeScreen: React.FC = () => {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.safeArea}>
 
-        {/* Ultra-Sleek App Header */}
-        <View style={styles.header}>
+        {/* Ultra-Premium App Header */}
+        <Animated.View style={[styles.header, { transform: [{ translateY: headerSlide }] }]}>
           <View>
             <Text style={styles.appName}>WeatherNow</Text>
             {currentWeather && (
@@ -194,7 +232,7 @@ export const HomeScreen: React.FC = () => {
               <Text style={styles.unitText}>{unit === 'imperial' ? '°F' : '°C'}</Text>
             </TouchableOpacity>
 
-            {/* In-App Notification Bell Button */}
+            {/* AI Push Notification Bell */}
             <TouchableOpacity
               style={styles.iconBtn}
               onPress={() => setNotificationVisible(true)}
@@ -219,7 +257,7 @@ export const HomeScreen: React.FC = () => {
               <Text style={styles.iconBtnText}>🔍</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Tab Router Switcher */}
         {activeTab === 'radar' ? (
@@ -249,7 +287,7 @@ export const HomeScreen: React.FC = () => {
           /* Main Weather View */
           <>
             {/* US Metro Quick City Filter */}
-            <View style={styles.chipsContainer}>
+            <Animated.View style={[styles.chipsContainer, { transform: [{ translateY: chipsSlide }] }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
                 {US_POPULAR_CITIES.map((city) => {
                   const isActive = currentWeather?.name.toLowerCase().includes(city.toLowerCase());
@@ -267,7 +305,7 @@ export const HomeScreen: React.FC = () => {
                   );
                 })}
               </ScrollView>
-            </View>
+            </Animated.View>
 
             {/* Main Content Area */}
             {isLoading && !currentWeather ? (
@@ -289,8 +327,16 @@ export const HomeScreen: React.FC = () => {
                     />
                   }
                 >
-                  {/* Hero Weather Section */}
-                  <View style={styles.heroSection}>
+                  {/* ═══════════════════════════════════════════
+                      HERO SECTION — Ultra-Premium Weather Display
+                      ═══════════════════════════════════════════ */}
+                  <Animated.View style={[
+                    styles.heroSection,
+                    {
+                      transform: [{ scale: heroScale }],
+                      opacity: heroOpacity,
+                    },
+                  ]}>
                     <Text style={styles.weatherIcon}>
                       {WEATHER_ICONS[iconCode] || '🌤️'}
                     </Text>
@@ -316,118 +362,150 @@ export const HomeScreen: React.FC = () => {
                           Feels like {displayTemp(currentWeather.main.feels_like)}°
                         </Text>
                       </View>
+                      <View style={styles.heroPillDivider} />
                       <View style={styles.heroConditionPill}>
                         <Text style={styles.heroConditionPillText}>
                           H: {displayTemp(currentWeather.main.temp_max)}°  ·  L: {displayTemp(currentWeather.main.temp_min)}°
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  </Animated.View>
 
-                  {/* 24-Hour Forecast Timeline */}
-                  {hourlyForecast.length > 0 && (
-                    <View style={styles.sectionContainer}>
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.cardIcon}>🕒</Text>
-                        <Text style={styles.cardSectionTitle}>HOURLY FORECAST</Text>
+                  {/* ═══════════════════════════════════════════
+                      24-HOUR FORECAST TIMELINE
+                      ═══════════════════════════════════════════ */}
+                  <Animated.View style={{ transform: [{ translateY: contentSlide }] }}>
+                    {hourlyForecast.length > 0 && (
+                      <View style={styles.sectionContainer}>
+                        <View style={styles.cardHeader}>
+                          <Text style={styles.cardIcon}>🕒</Text>
+                          <Text style={styles.cardSectionTitle}>HOURLY FORECAST</Text>
+                        </View>
+                        <FlatList
+                          data={hourlyForecast}
+                          horizontal
+                          keyExtractor={(_, i) => i.toString()}
+                          showsHorizontalScrollIndicator={false}
+                          renderItem={({ item, index }) => (
+                            <HourlyForecastCard item={item} isFirst={index === 0} unit={unit} />
+                          )}
+                          contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 2 }}
+                        />
                       </View>
-                      <FlatList
-                        data={hourlyForecast}
-                        horizontal
-                        keyExtractor={(_, i) => i.toString()}
-                        showsHorizontalScrollIndicator={false}
-                        renderItem={({ item, index }) => (
-                          <HourlyForecastCard item={item} isFirst={index === 0} unit={unit} />
-                        )}
-                        contentContainerStyle={{ paddingVertical: 4, paddingHorizontal: 2 }}
+                    )}
+
+                    {/* ═══════════════════════════════════════════
+                        PRECIPITATION BAR CHART
+                        ═══════════════════════════════════════════ */}
+                    {precipData.length > 0 && (
+                      <PrecipitationChart hourlyData={precipData} />
+                    )}
+
+                    {/* ═══════════════════════════════════════════
+                        UV INDEX & AIR QUALITY GAUGES
+                        ═══════════════════════════════════════════ */}
+                    <View style={styles.sectionMargin}>
+                      <UvAirQualityCard
+                        uvIndex={Math.round(currentWeather.main.temp > 25 ? 7 : 4)}
+                        humidity={currentWeather.main.humidity}
+                        dewPoint={currentWeather.main.temp - (100 - currentWeather.main.humidity) / 5}
+                        unit={unit}
                       />
                     </View>
-                  )}
 
-                  {/* UV Index & Air Quality Section */}
-                  <View style={styles.sectionMargin}>
-                    <UvAirQualityCard
-                      uvIndex={Math.round(currentWeather.main.temp > 25 ? 7 : 4)}
-                      humidity={currentWeather.main.humidity}
-                      dewPoint={currentWeather.main.temp - (100 - currentWeather.main.humidity) / 5}
-                      unit={unit}
+                    {/* ═══════════════════════════════════════════
+                        7-DAY FORECAST — Apple Weather Style
+                        ═══════════════════════════════════════════ */}
+                    {dailyForecast.length > 0 && (
+                      <View style={styles.cardEncapsulated}>
+                        <View style={styles.cardHeader}>
+                          <Text style={styles.cardIcon}>📅</Text>
+                          <Text style={styles.cardSectionTitle}>7-DAY FORECAST</Text>
+                        </View>
+                        <View style={styles.forecastList}>
+                          {dailyForecast.map((item, index) => (
+                            <ForecastCard
+                              key={index}
+                              item={item}
+                              isToday={index === 0}
+                              minTempWeek={minWeek}
+                              maxTempWeek={maxWeek}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* ═══════════════════════════════════════════
+                        WIND COMPASS + FEELS LIKE GAUGE — Side by Side
+                        ═══════════════════════════════════════════ */}
+                    <View style={styles.dualCardRow}>
+                      <View style={{ flex: 1 }}>
+                        <WindCompassCard
+                          speed={currentWeather.wind.speed}
+                          direction={currentWeather.wind.deg || 0}
+                          gustSpeed={currentWeather.wind.gust}
+                          unit={unit}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <FeelsLikeGauge
+                          feelsLike={currentWeather.main.feels_like}
+                          actual={currentWeather.main.temp}
+                          unit={unit}
+                        />
+                      </View>
+                    </View>
+
+                    {/* ═══════════════════════════════════════════
+                        WEATHER DETAILS — 2x2 GRID
+                        ═══════════════════════════════════════════ */}
+                    <View style={styles.sectionMargin}>
+                      <View style={styles.statsGrid}>
+                        <StatCard
+                          icon="💧"
+                          label="Humidity"
+                          value={`${currentWeather.main.humidity}%`}
+                          subtext={`Dew point ${displayTemp(currentWeather.main.temp - 6)}°`}
+                          accentColor={COLORS.cyan}
+                          gaugeProgress={currentWeather.main.humidity / 100}
+                        />
+                        <StatCard
+                          icon="👁️"
+                          label="Visibility"
+                          value={getVisibility(currentWeather.visibility)}
+                          subtext="Clear view of horizon"
+                          accentColor={COLORS.emerald}
+                        />
+                        <StatCard
+                          icon="🌡️"
+                          label="Pressure"
+                          value={getPressure(currentWeather.main.pressure)}
+                          subtext="Barometer is steady"
+                          accentColor={COLORS.violet}
+                        />
+                        <StatCard
+                          icon="🌬️"
+                          label="Wind Speed"
+                          value={getWindSpeed(currentWeather.wind.speed)}
+                          unit={getWindDirection(currentWeather.wind.deg)}
+                          subtext="Current gusts"
+                          accentColor={COLORS.teal}
+                        />
+                      </View>
+                    </View>
+
+                    {/* ═══════════════════════════════════════════
+                        SUN ARC — Sunrise/Sunset SVG Visualization
+                        ═══════════════════════════════════════════ */}
+                    <SunArcCard
+                      sunrise={currentWeather.sys.sunrise}
+                      sunset={currentWeather.sys.sunset}
                     />
-                  </View>
 
-                  {/* 7-Day Apple Weather Style Forecast Card */}
-                  {dailyForecast.length > 0 && (
-                    <View style={styles.cardEncapsulated}>
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.cardIcon}>📅</Text>
-                        <Text style={styles.cardSectionTitle}>7-DAY FORECAST</Text>
-                      </View>
-                      <View style={styles.forecastList}>
-                        {dailyForecast.map((item, index) => (
-                          <ForecastCard
-                            key={index}
-                            item={item}
-                            isToday={index === 0}
-                            minTempWeek={minWeek}
-                            maxTempWeek={maxWeek}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* 2x2 Weather Details Grid */}
-                  <View style={styles.sectionMargin}>
-                    <View style={styles.statsGrid}>
-                      <StatCard
-                        icon="💧"
-                        label="Humidity"
-                        value={`${currentWeather.main.humidity}%`}
-                        subtext={`The dew point is ${displayTemp(currentWeather.main.temp - 6)}°`}
-                      />
-                      <StatCard
-                        icon="💨"
-                        label="Wind"
-                        value={getWindSpeed(currentWeather.wind.speed)}
-                        unit={getWindDirection(currentWeather.wind.deg)}
-                        subtext="Gentle breeze today"
-                      />
-                      <StatCard
-                        icon="👁️"
-                        label="Visibility"
-                        value={getVisibility(currentWeather.visibility)}
-                        subtext="Clear view of horizon"
-                      />
-                      <StatCard
-                        icon="🌡️"
-                        label="Pressure"
-                        value={getPressure(currentWeather.main.pressure)}
-                        subtext="Barometer is steady"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Solar Schedule Card */}
-                  <View style={styles.cardEncapsulated}>
-                    <View style={styles.cardHeader}>
-                      <Text style={styles.cardIcon}>☀️</Text>
-                      <Text style={styles.cardSectionTitle}>SOLAR CYCLE</Text>
-                    </View>
-                    <View style={styles.sunRow}>
-                      <View style={styles.sunCard}>
-                        <Text style={styles.sunIcon}>🌅</Text>
-                        <Text style={styles.sunLabel}>Sunrise</Text>
-                        <Text style={styles.sunTime}>{formatTime(currentWeather.sys.sunrise)}</Text>
-                      </View>
-                      <View style={styles.sunDivider} />
-                      <View style={styles.sunCard}>
-                        <Text style={styles.sunIcon}>🌇</Text>
-                        <Text style={styles.sunLabel}>Sunset</Text>
-                        <Text style={styles.sunTime}>{formatTime(currentWeather.sys.sunset)}</Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={{ height: 110 }} />
+                    {/* Bottom spacer for tab bar */}
+                    <View style={{ height: 110 }} />
+                  </Animated.View>
                 </ScrollView>
               </Animated.View>
             ) : null}
@@ -481,109 +559,132 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+
+  // ── HEADER ────────────────────────
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 8,
   },
   appName: {
-    fontSize: 24,
+    fontSize: 26,
     color: '#FFF',
+    fontFamily: FONTS.extraBold,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
   },
   locationLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.accent,
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 1,
+    letterSpacing: 0.2,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
   },
   unitBtn: {
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   unitText: {
     color: '#FFF',
     fontSize: 13,
+    fontFamily: FONTS.bold,
     fontWeight: '700',
   },
   iconBtn: {
     width: 38,
     height: 38,
     borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   notificationDot: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 5,
+    right: 5,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#0A0F1D',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
   },
   iconBtnText: {
     fontSize: 16,
   },
+
+  // ── CITY CHIPS ────────────────────
   chipsContainer: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   chipsScroll: {
     paddingHorizontal: 20,
     gap: 8,
   },
   cityChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   cityChipActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    borderColor: 'rgba(56, 189, 248, 0.4)',
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   cityChipText: {
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     fontSize: 12.5,
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
   },
   cityChipTextActive: {
-    color: '#000',
+    color: COLORS.accent,
+    fontFamily: FONTS.extraBold,
     fontWeight: '800',
   },
   scrollView: {
     flex: 1,
   },
+
+  // ── HERO SECTION ────────────────────
   heroSection: {
     alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 22,
+    paddingTop: 6,
+    paddingBottom: 24,
     paddingHorizontal: 20,
   },
   weatherIcon: {
-    fontSize: 82,
+    fontSize: 88,
     marginBottom: 2,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 4 },
+    textShadowRadius: 10,
   },
   tempRow: {
     flexDirection: 'row',
@@ -591,45 +692,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   temperature: {
-    fontSize: 96,
+    fontSize: 104,
+    fontFamily: FONTS.light,
     fontWeight: '200',
     color: '#FFF',
-    lineHeight: 100,
-    letterSpacing: -2,
+    lineHeight: 108,
+    letterSpacing: -4,
   },
   tempDegree: {
-    fontSize: 38,
+    fontSize: 40,
+    fontFamily: FONTS.light,
     fontWeight: '300',
     color: COLORS.accent,
-    marginTop: 8,
+    marginTop: 6,
   },
   weatherCondition: {
     fontSize: 22,
     color: '#FFF',
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   heroBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 10,
   },
   heroConditionPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  heroPillDivider: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   heroConditionPillText: {
     fontSize: 12,
     color: COLORS.textSecondary,
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
   },
+
+  // ── CONTENT SECTIONS ────────────────
   sectionContainer: {
     paddingHorizontal: 20,
     marginBottom: 16,
@@ -639,11 +752,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardEncapsulated: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 28,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
     marginHorizontal: 20,
     marginBottom: 16,
   },
@@ -659,48 +772,30 @@ const styles = StyleSheet.create({
   cardSectionTitle: {
     fontSize: 11,
     color: COLORS.textMuted,
+    fontFamily: FONTS.bold,
     fontWeight: '700',
     letterSpacing: 0.8,
   },
   forecastList: {
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
   },
+
+  // ── DUAL CARD ROW ────────────────
+  dualCardRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     margin: -5,
   },
-  sunRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 8,
-  },
-  sunCard: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  sunDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginVertical: 4,
-  },
-  sunIcon: {
-    fontSize: 26,
-    marginBottom: 4,
-  },
-  sunLabel: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  sunTime: {
-    fontSize: 16,
-    color: '#FFF',
-    fontWeight: '700',
-  },
+
+  // ── LOADING ────────────────────
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -711,20 +806,24 @@ const styles = StyleSheet.create({
   loadingText: {
     color: COLORS.textSecondary,
     fontSize: 15,
+    fontFamily: FONTS.medium,
+    fontWeight: '500',
     marginTop: 14,
   },
+
+  // ── MODALS ────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   modalSheet: {
     backgroundColor: '#0A0F1D',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
     paddingBottom: 40,
     borderTopWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
     minHeight: 450,
   },
   modalHandle: {
@@ -736,8 +835,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#FFF',
+    fontFamily: FONTS.bold,
     fontWeight: '700',
     marginBottom: 16,
   },

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity } from 'react-native';
-import { COLORS } from '../constants';
+import { COLORS, FONTS } from '../constants';
 
 interface Props {
   unit: 'metric' | 'imperial';
@@ -12,22 +12,54 @@ export const SettingsView: React.FC<Props> = ({ unit, onToggleUnit }) => {
   const [rainAlerts, setRainAlerts] = useState(true);
   const [dailyBriefing, setDailyBriefing] = useState(true);
   const [highPrecisionGps, setHighPrecisionGps] = useState(true);
+  const [hapticFeedback, setHapticFeedback] = useState(true);
+  const [darkMode, setDarkMode] = useState(true);
+
+  const SettingRow: React.FC<{
+    icon: string;
+    label: string;
+    subLabel: string;
+    value: boolean;
+    onToggle: (v: boolean) => void;
+  }> = ({ icon, label, subLabel, value, onToggle }) => (
+    <View style={styles.row}>
+      <View style={styles.rowIconWrap}>
+        <Text style={styles.rowIcon}>{icon}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowSubLabel}>{subLabel}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: 'rgba(255,255,255,0.08)', true: 'rgba(56,189,248,0.4)' }}
+        thumbColor={value ? COLORS.accent : '#64748B'}
+        ios_backgroundColor="rgba(255,255,255,0.08)"
+      />
+    </View>
+  );
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Text style={styles.title}>Preferences & Alerts</Text>
-        <Text style={styles.subtitle}>Customize US Weather Notifications & Units</Text>
+        <Text style={styles.title}>Preferences</Text>
+        <Text style={styles.subtitle}>Customize your weather experience</Text>
       </View>
 
       {/* Units Section */}
       <View style={styles.section}>
         <Text style={styles.sectionHeader}>UNITS OF MEASUREMENT</Text>
         <View style={styles.card}>
-          <TouchableOpacity style={styles.row} onPress={onToggleUnit}>
-            <View>
+          <TouchableOpacity style={styles.unitRow} onPress={onToggleUnit} activeOpacity={0.7}>
+            <View style={styles.rowIconWrap}>
+              <Text style={styles.rowIcon}>🌡️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Temperature Unit</Text>
-              <Text style={styles.rowSubLabel}>{unit === 'imperial' ? 'Fahrenheit (°F) · US Standard' : 'Celsius (°C) · Metric Standard'}</Text>
+              <Text style={styles.rowSubLabel}>
+                {unit === 'imperial' ? 'Fahrenheit (°F) · US Standard' : 'Celsius (°C) · Metric Standard'}
+              </Text>
             </View>
             <View style={styles.unitPill}>
               <Text style={styles.unitPillText}>{unit === 'imperial' ? '°F' : '°C'}</Text>
@@ -36,78 +68,81 @@ export const SettingsView: React.FC<Props> = ({ unit, onToggleUnit }) => {
         </View>
       </View>
 
-      {/* US Weather Alerts & Notifications */}
+      {/* Notifications */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>PUSH NOTIFICATIONS & RADAR ALERTS</Text>
+        <Text style={styles.sectionHeader}>PUSH NOTIFICATIONS & ALERTS</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>🚨 Severe Weather Alerts</Text>
-              <Text style={styles.rowSubLabel}>National Weather Service (NWS) warnings & tornados</Text>
-            </View>
-            <Switch
-              value={severeAlerts}
-              onValueChange={setSevereAlerts}
-              trackColor={{ false: '#334155', true: COLORS.accent }}
-              thumbColor="#FFF"
-            />
-          </View>
-
+          <SettingRow
+            icon="🚨"
+            label="Severe Weather Alerts"
+            subLabel="NWS warnings, tornados & hurricanes"
+            value={severeAlerts}
+            onToggle={setSevereAlerts}
+          />
           <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>🌧️ Precipitation / Rain Radar</Text>
-              <Text style={styles.rowSubLabel}>Get notified 15 minutes before rain starts in your area</Text>
-            </View>
-            <Switch
-              value={rainAlerts}
-              onValueChange={setRainAlerts}
-              trackColor={{ false: '#334155', true: COLORS.accent }}
-              thumbColor="#FFF"
-            />
-          </View>
-
+          <SettingRow
+            icon="🌧️"
+            label="Rain Anticipation"
+            subLabel="Notified 15 min before precipitation"
+            value={rainAlerts}
+            onToggle={setRainAlerts}
+          />
           <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>☀️ Daily Morning Briefing</Text>
-              <Text style={styles.rowSubLabel}>7:30 AM summary of the day's high, low & rain chance</Text>
-            </View>
-            <Switch
-              value={dailyBriefing}
-              onValueChange={setDailyBriefing}
-              trackColor={{ false: '#334155', true: COLORS.accent }}
-              thumbColor="#FFF"
-            />
-          </View>
+          <SettingRow
+            icon="☀️"
+            label="Daily Morning Briefing"
+            subLabel="7:30 AM high, low & rain chance"
+            value={dailyBriefing}
+            onToggle={setDailyBriefing}
+          />
         </View>
       </View>
 
-      {/* Location & Performance */}
+      {/* System */}
       <View style={styles.section}>
-        <Text style={styles.sectionHeader}>LOCATION & RADAR PRECISION</Text>
+        <Text style={styles.sectionHeader}>SYSTEM & EXPERIENCE</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>📍 High-Precision GPS</Text>
-              <Text style={styles.rowSubLabel}>Hyper-local neighborhood radar resolution</Text>
-            </View>
-            <Switch
-              value={highPrecisionGps}
-              onValueChange={setHighPrecisionGps}
-              trackColor={{ false: '#334155', true: COLORS.accent }}
-              thumbColor="#FFF"
-            />
-          </View>
+          <SettingRow
+            icon="📍"
+            label="High-Precision GPS"
+            subLabel="Hyper-local neighborhood resolution"
+            value={highPrecisionGps}
+            onToggle={setHighPrecisionGps}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            icon="📳"
+            label="Haptic Feedback"
+            subLabel="Subtle vibrations on interactions"
+            value={hapticFeedback}
+            onToggle={setHapticFeedback}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            icon="🌙"
+            label="Dark Mode"
+            subLabel="Premium obsidian dark theme"
+            value={darkMode}
+            onToggle={setDarkMode}
+          />
         </View>
       </View>
 
       {/* App Version Info */}
-      <View style={styles.card}>
-        <Text style={styles.aboutTitle}>WeatherNow Ultra v1.2</Text>
-        <Text style={styles.aboutText}>Engineered for iOS App Store & Google Play Store (US Market Edition). Integrated with OpenWeather & NestJS Cloud Architecture.</Text>
+      <View style={styles.aboutCard}>
+        <View style={styles.aboutLogoRow}>
+          <Text style={styles.aboutEmoji}>⛅</Text>
+          <View>
+            <Text style={styles.aboutTitle}>WeatherNow Ultra</Text>
+            <Text style={styles.aboutVersion}>Version 2.0 · Build 2026.10</Text>
+          </View>
+        </View>
+        <View style={styles.aboutDivider} />
+        <Text style={styles.aboutText}>
+          Engineered for iOS & Android · US Market Edition{'\n'}
+          OpenWeather API · NestJS Cloud · PostgreSQL{'\n'}
+          Designed with ❤️ for premium weather experience
+        </Text>
       </View>
 
       <View style={{ height: 110 }} />
@@ -125,13 +160,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     color: COLORS.textPrimary,
+    fontFamily: FONTS.extraBold,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 12,
     color: COLORS.textMuted,
+    fontFamily: FONTS.medium,
+    fontWeight: '500',
     marginTop: 2,
   },
   section: {
@@ -140,60 +179,114 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 11,
     color: COLORS.textMuted,
+    fontFamily: FONTS.bold,
     fontWeight: '700',
     letterSpacing: 0.8,
     marginBottom: 8,
     paddingHorizontal: 4,
   },
   card: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 28,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    marginBottom: 12,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 8,
+    gap: 12,
+  },
+  rowIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowIcon: {
+    fontSize: 18,
   },
   rowLabel: {
     fontSize: 15,
     color: COLORS.textPrimary,
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
   },
   rowSubLabel: {
     fontSize: 12,
     color: COLORS.textMuted,
-    marginTop: 2,
+    fontFamily: FONTS.regular,
+    fontWeight: '400',
+    marginTop: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    marginVertical: 6,
+    marginLeft: 48,
+  },
+  unitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 12,
   },
   unitPill: {
-    backgroundColor: COLORS.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.3)',
   },
   unitPillText: {
-    color: '#000',
-    fontSize: 14,
+    color: COLORS.accent,
+    fontSize: 15,
+    fontFamily: FONTS.extraBold,
     fontWeight: '800',
   },
+  aboutCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    marginBottom: 12,
+  },
+  aboutLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  aboutEmoji: {
+    fontSize: 36,
+  },
   aboutTitle: {
-    fontSize: 14,
+    fontSize: 18,
     color: COLORS.textPrimary,
+    fontFamily: FONTS.bold,
     fontWeight: '700',
-    marginBottom: 4,
+  },
+  aboutVersion: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontFamily: FONTS.medium,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  aboutDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginVertical: 14,
   },
   aboutText: {
     fontSize: 12,
     color: COLORS.textMuted,
-    lineHeight: 18,
+    fontFamily: FONTS.regular,
+    fontWeight: '400',
+    lineHeight: 20,
   },
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, WEATHER_ICONS } from '../constants';
+import { COLORS, FONTS, WEATHER_ICONS } from '../constants';
 import { DailyForecast } from '../types/weather';
 import { useWeatherStore } from '../store/weatherStore';
 
@@ -28,6 +28,12 @@ export const ForecastCard: React.FC<Props> = ({
   const leftPercent = Math.max(0, Math.min(100, ((displayLow - minTempWeek) / totalRange) * 100));
   const rightPercent = Math.max(0, Math.min(100, ((maxTempWeek - displayHigh) / totalRange) * 100));
 
+  // Current temp dot position (for "Today" row)
+  const currentTemp = unit === 'imperial'
+    ? Math.round((item.high * 9) / 5 + 32) - 3
+    : item.high - 2;
+  const dotPercent = Math.max(0, Math.min(100, ((currentTemp - minTempWeek) / totalRange) * 100));
+
   return (
     <View style={[styles.row, isToday && styles.todayRow]}>
       {/* Day Name */}
@@ -49,7 +55,7 @@ export const ForecastCard: React.FC<Props> = ({
       {/* Temperature Bar */}
       <View style={styles.barTrack}>
         <LinearGradient
-          colors={['#38BDF8', '#F59E0B', '#F43F5E']}
+          colors={['#38BDF8', '#10B981', '#F59E0B', '#F43F5E']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[
@@ -60,6 +66,12 @@ export const ForecastCard: React.FC<Props> = ({
             },
           ]}
         />
+        {/* Current temp dot (Today only) */}
+        {isToday && (
+          <View style={[styles.currentDot, { left: `${dotPercent}%` }]}>
+            <View style={styles.currentDotInner} />
+          </View>
+        )}
       </View>
 
       {/* High Temp */}
@@ -72,26 +84,28 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.04)',
   },
   todayRow: {
     backgroundColor: 'rgba(56, 189, 248, 0.06)',
-    borderRadius: 16,
+    borderRadius: 18,
     marginVertical: 2,
     borderBottomWidth: 0,
   },
   dayText: {
-    width: 60,
+    width: 56,
     fontSize: 15,
     color: COLORS.textPrimary,
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
     letterSpacing: 0.2,
   },
   todayDayText: {
     color: COLORS.accent,
+    fontFamily: FONTS.extraBold,
     fontWeight: '800',
   },
   iconColumn: {
@@ -105,6 +119,7 @@ const styles = StyleSheet.create({
   humidityText: {
     fontSize: 10,
     color: '#38BDF8',
+    fontFamily: FONTS.bold,
     fontWeight: '700',
     marginTop: -2,
   },
@@ -113,27 +128,49 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 15,
     color: COLORS.textMuted,
+    fontFamily: FONTS.semiBold,
     fontWeight: '600',
     marginRight: 10,
   },
   barTrack: {
     flex: 1,
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    height: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: 3,
-    overflow: 'hidden',
+    overflow: 'visible',
     justifyContent: 'center',
+    position: 'relative',
   },
   barFill: {
     height: '100%',
     borderRadius: 3,
-    minWidth: 12,
+    minWidth: 14,
+  },
+  currentDot: {
+    position: 'absolute',
+    top: -5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -7,
+  },
+  currentDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.2)',
   },
   highText: {
     width: 34,
     textAlign: 'left',
     fontSize: 15,
     color: COLORS.textPrimary,
+    fontFamily: FONTS.bold,
     fontWeight: '700',
     marginLeft: 10,
   },
