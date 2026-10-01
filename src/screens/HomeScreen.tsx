@@ -95,6 +95,44 @@ export const HomeScreen: React.FC = () => {
   const chipsSlide = useRef(new Animated.Value(30)).current;
   const contentSlide = useRef(new Animated.Value(40)).current;
 
+  // Fluid Tab Transition Animations
+  const tabContentOpacity = useRef(new Animated.Value(1)).current;
+  const tabContentTranslateY = useRef(new Animated.Value(0)).current;
+
+  const handleSelectTab = (tab: TabKey) => {
+    if (tab === activeTab) return;
+
+    Animated.parallel([
+      Animated.timing(tabContentOpacity, {
+        toValue: 0,
+        duration: 90,
+        useNativeDriver: true,
+      }),
+      Animated.timing(tabContentTranslateY, {
+        toValue: 6,
+        duration: 90,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setActiveTab(tab);
+      tabContentTranslateY.setValue(-6);
+      Animated.parallel([
+        Animated.timing(tabContentOpacity, {
+          toValue: 1,
+          duration: 200,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(tabContentTranslateY, {
+          toValue: 0,
+          friction: 8,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
   const {
     currentWeather,
     dailyForecast,
@@ -322,8 +360,15 @@ export const HomeScreen: React.FC = () => {
           </View>
         </Animated.View>
 
-        {/* Tab Router Switcher */}
-        {activeTab === 'radar' ? (
+        {/* Tab Router Switcher with Fluid Animation */}
+        <Animated.View
+          style={{
+            flex: 1,
+            opacity: tabContentOpacity,
+            transform: [{ translateY: tabContentTranslateY }],
+          }}
+        >
+          {activeTab === 'radar' ? (
           <RadarView
             cityName={currentWeather?.name || 'Dhaka'}
             temp={currentWeather?.main.temp || 20}
@@ -638,9 +683,10 @@ export const HomeScreen: React.FC = () => {
             ) : null}
           </>
         )}
+        </Animated.View>
 
         {/* Floating Glassmorphic Bottom Tab Bar */}
-        <BottomTabBar activeTab={activeTab} onSelectTab={setActiveTab} />
+        <BottomTabBar activeTab={activeTab} onSelectTab={handleSelectTab} />
       </SafeAreaView>
 
       {/* AI Push Notification Control Center */}

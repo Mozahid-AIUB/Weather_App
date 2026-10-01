@@ -24,6 +24,8 @@ const DEFAULT_CITIES: SavedCityData[] = [
   { city: 'Seattle', state: 'WA', temp: 58, condition: 'Light Rain', high: 62, low: 48, icon: '🌧️', time: '8:42 AM', gradient: ['#1e3a5f', '#2d4a7c'] },
 ];
 
+import { useWeatherStore } from '../store/weatherStore';
+
 interface Props {
   unit: 'metric' | 'imperial';
   onSelectCity: (city: string) => void;
@@ -31,15 +33,16 @@ interface Props {
 }
 
 export const SavedCitiesView: React.FC<Props> = ({ unit, onSelectCity, onOpenSearch }) => {
+  const recentCities = useWeatherStore((s) => s.recentCities);
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Favorite Locations</Text>
-          <Text style={styles.subtitle}>Manage & track US Metros</Text>
+          <Text style={styles.title}>Locations & Cities</Text>
+          <Text style={styles.subtitle}>Track your favorite places worldwide</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={onOpenSearch} activeOpacity={0.7}>
-          <Text style={styles.addBtnText}>+ Add City</Text>
+          <Text style={styles.addBtnText}>+ Search City</Text>
         </TouchableOpacity>
       </View>
 
