@@ -1,13 +1,14 @@
 # ── Build ───────────────────────────────────────────────
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# Dev dependencies are needed to compile, whatever NODE_ENV the platform passes in.
+RUN npm ci --include=dev
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
 # ── Run ─────────────────────────────────────────────────
-FROM node:22-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/package*.json ./
