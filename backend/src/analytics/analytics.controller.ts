@@ -5,11 +5,15 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { LogViewDto } from './dto/log-view.dto';
 import { Analytics } from './entities/analytics.entity';
+import { AdminKeyGuard } from '../common/admin-key.guard';
+
+const ADMIN = ApiHeader({ name: 'x-admin-key', description: 'Admin API key', required: true });
 
 @ApiTags('analytics')
 @Controller('analytics')
@@ -27,7 +31,9 @@ export class AnalyticsController {
 
   // ── GET /api/analytics/top ───────────────────────────────
   @Get('top')
-  @ApiOperation({ summary: 'Get top 10 most-viewed cities' })
+  @UseGuards(AdminKeyGuard)
+  @ADMIN
+  @ApiOperation({ summary: 'Get top 10 most-viewed cities (admin)' })
   @ApiResponse({ status: 200, type: [Analytics] })
   getTopCities(): Promise<Analytics[]> {
     return this.service.getTopCities();
@@ -35,7 +41,9 @@ export class AnalyticsController {
 
   // ── GET /api/analytics/stats ─────────────────────────────
   @Get('stats')
-  @ApiOperation({ summary: 'Get overall analytics stats' })
+  @UseGuards(AdminKeyGuard)
+  @ADMIN
+  @ApiOperation({ summary: 'Get overall analytics stats (admin)' })
   @ApiResponse({
     status: 200,
     description: '{ totalCities, totalViews, topCity }',

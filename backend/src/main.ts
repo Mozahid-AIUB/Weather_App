@@ -13,7 +13,7 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.ALLOWED_ORIGINS || '*',
     methods: ['GET', 'POST', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
   });
 
   // ── Global validation pipe ─────────────────────────────
@@ -33,6 +33,7 @@ async function bootstrap() {
     .addTag('search-history', 'City search history management')
     .addTag('analytics', 'Weather view analytics')
     .addTag('health', 'Health check')
+    .addTag('devices', 'Push notification registration')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

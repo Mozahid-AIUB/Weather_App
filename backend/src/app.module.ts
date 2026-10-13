@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SearchHistoryModule } from './search-history/search-history.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
+import { DevicesModule } from './devices/devices.module';
 
 @Module({
   imports: [
@@ -20,16 +21,16 @@ import { HealthModule } from './health/health.module';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         host: config.get<string>('DB_HOST', 'localhost'),
-        port: config.get<number>('DB_PORT', 5432),
+        port: Number(config.get('DB_PORT', 5432)),
         database: config.get<string>('DB_NAME', 'weathernow'),
         username: config.get<string>('DB_USER', 'weathernow_user'),
         password: config.get<string>('DB_PASSWORD'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: config.get<boolean>('DB_SYNC', false),
-        logging: config.get<boolean>('DB_LOGGING', false),
-        ssl: config.get('NODE_ENV') === 'production'
-          ? { rejectUnauthorized: false }
-          : false,
+        // Env values are strings, so compare explicitly ("false" would otherwise be truthy).
+        synchronize: config.get('DB_SYNC') === 'true',
+        logging: config.get('DB_LOGGING') === 'true',
+        // Managed cloud databases need SSL; a database on the same server (e.g. Coolify) does not.
+        ssl: config.get('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
       }),
     }),
 
@@ -37,6 +38,7 @@ import { HealthModule } from './health/health.module';
     SearchHistoryModule,
     AnalyticsModule,
     HealthModule,
+    DevicesModule,
   ],
 })
 export class AppModule {}

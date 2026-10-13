@@ -8,16 +8,21 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { SearchHistoryService } from './search-history.service';
 import { CreateSearchHistoryDto } from './dto/create-search-history.dto';
 import { SearchHistory } from './entities/search-history.entity';
+import { AdminKeyGuard } from '../common/admin-key.guard';
+
+const ADMIN = ApiHeader({ name: 'x-admin-key', description: 'Admin API key', required: true });
 
 @ApiTags('search-history')
 @Controller('search-history')
@@ -26,7 +31,9 @@ export class SearchHistoryController {
 
   // ── GET /api/search-history ──────────────────────────────
   @Get()
-  @ApiOperation({ summary: 'Get last 20 city searches' })
+  @UseGuards(AdminKeyGuard)
+  @ADMIN
+  @ApiOperation({ summary: 'Get last 20 city searches (admin)' })
   @ApiResponse({ status: 200, type: [SearchHistory] })
   findAll(): Promise<SearchHistory[]> {
     return this.service.findAll();
@@ -44,8 +51,10 @@ export class SearchHistoryController {
 
   // ── DELETE /api/search-history/clear ────────────────────
   @Delete('clear')
+  @UseGuards(AdminKeyGuard)
+  @ADMIN
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Clear all search history' })
+  @ApiOperation({ summary: 'Clear all search history (admin)' })
   @ApiResponse({ status: 200, description: '{ deleted: number }' })
   clear(): Promise<{ deleted: number }> {
     return this.service.clear();
@@ -53,8 +62,10 @@ export class SearchHistoryController {
 
   // ── DELETE /api/search-history/:id ──────────────────────
   @Delete(':id')
+  @UseGuards(AdminKeyGuard)
+  @ADMIN
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete a single history entry' })
+  @ApiOperation({ summary: 'Delete a single history entry (admin)' })
   @ApiParam({ name: 'id', description: 'UUID of the search history entry' })
   @ApiResponse({ status: 200, description: '{ success: true }' })
   @ApiResponse({ status: 404, description: 'Not found' })
