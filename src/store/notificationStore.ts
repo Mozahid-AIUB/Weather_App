@@ -18,9 +18,13 @@ interface NotificationState {
   lastGroup: Record<string, { group: SkyCondition; at: number }>;
   toast: AppNotification | null;
   permission: PermissionState;
+  /** True once the backend sends this phone's alerts; local system notifications then stop. */
+  serverPush: boolean;
 
   hydrate: () => Promise<void>;
   ingest: (alerts: DerivedAlert[]) => void;
+  ingestServerPush: (push: { id: string; kind: string; severity: string; city: string; title: string; body: string }) => void;
+  setServerPush: (on: boolean) => void;
   setLastGroup: (city: string, group: SkyCondition) => void;
   markAllRead: () => void;
   clear: () => void;
@@ -30,6 +34,7 @@ interface NotificationState {
 }
 
 const KEY = '@weathernow_notifications_v1';
+export const PUSH_REG_KEY = '@weathernow_push_reg_v1';
 const SEVERITY_RANK = { info: 0, warning: 1, severe: 2 };
 
 export const useNotificationStore = create<NotificationState>((set, get) => {
@@ -44,9 +49,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     lastGroup: {},
     toast: null,
     permission: 'default',
+    serverPush: false,
 
     hydrate: async () => {
       try {
+        if (await AsyncStorage.getItem(PUSH_REG_KEY)) set({ serverPush: true });
         const raw = await AsyncStorage.getItem(KEY);
         if (raw) {
           const saved = JSON.parse(raw);
@@ -78,12 +85,31 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       });
       persist();
 
-      // Mirror to the system tray: everything except minor condition changes, at most two at once.
+      // Mirror to the system tray (unless the server already does): everything except minor
+      // condition changes, at most two at once.
+      if (get().serverPush) return;
       added
         .filter((a) => a.severity !== 'info' || a.kind === 'brief')
         .slice(0, 2)
         .forEach((a) => notificationService.present(a.title, a.body));
     },
+
+    ingestServerPush: (push) => {
+      if (get().seen.includes(push.id)) return;
+      const kinds = ['storm', 'rain', 'snow', 'heat', 'cold', 'wind', 'visibility', 'change', 'brief'];
+      const severities = ['info', 'warning', 'severe'];
+      const item: AppNotification = {
+        ...push,
+        kind: (kinds.includes(push.kind) ? push.kind : 'brief') as AppNotification['kind'],
+        severity: (severities.includes(push.severity) ? push.severity : 'info') as AppNotification['severity'],
+        createdAt: Date.now(),
+        read: false,
+      };
+      set({ items: [item, ...get().items].slice(0, 60), seen: [push.id, ...get().seen].slice(0, 300), toast: item });
+      persist();
+    },
+
+    setServerPush: (on) => set({ serverPush: on }),
 
     setLastGroup: (city, group) => {
       set({ lastGroup: { ...get().lastGroup, [city]: { group, at: Date.now() } } });

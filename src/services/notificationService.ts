@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
+import Constants from 'expo-constants';
 
 // expo-notifications is only loaded outside Expo Go — Android Expo Go dropped notification
 // support in SDK 53. In Expo Go the app falls back to in-app alerts only.
@@ -17,12 +18,12 @@ if (Platform.OS !== 'web' && !inExpoGo()) {
   try {
     Notifications = require('expo-notifications');
     Notifications!.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
+      // Server pushes carry an alert id. While the app is open they become an in-app toast
+      // instead (see onServerPush), so the system banner is suppressed to avoid doubles.
+      handleNotification: async (n) => {
+        const fromServer = !!(n.request.content.data as { id?: string } | undefined)?.id;
+        return { shouldPlaySound: !fromServer, shouldSetBadge: false, shouldShowBanner: !fromServer, shouldShowList: !fromServer };
+      },
     });
   } catch {
     Notifications = null;
@@ -135,5 +136,39 @@ export const notificationService = {
   cancelMorningBrief: async () => {
     if (!Notifications) return;
     await Notifications.cancelScheduledNotificationAsync(BRIEF_ID).catch(() => {});
+  },
+
+  /** Expo push token for server-sent alerts; null in Expo Go, on web or without permission. */
+  getPushToken: async (): Promise<string | null> => {
+    if (!Notifications) return null;
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') return null;
+      await ensureChannel();
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+      const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+      return data;
+    } catch {
+      // e.g. Android build without Firebase (FCM) credentials
+      return null;
+    }
+  },
+
+  /** Calls `handler` for each server push that arrives while the app is open. */
+  onServerPush: (handler: (push: { id: string; kind: string; severity: string; city: string; title: string; body: string }) => void) => {
+    if (!Notifications) return () => {};
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      const data = n.request.content.data as { id?: string; kind?: string; severity?: string; city?: string } | undefined;
+      if (!data?.id) return;
+      handler({
+        id: data.id,
+        kind: data.kind || 'brief',
+        severity: data.severity || 'info',
+        city: data.city || '',
+        title: n.request.content.title || '',
+        body: n.request.content.body || '',
+      });
+    });
+    return () => sub.remove();
   },
 };

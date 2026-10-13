@@ -13,7 +13,39 @@ const api = axios.create({
   },
 });
 
+/** False until a real backend URL is configured (placeholder or localhost is skipped). */
+export const backendConfigured = !/YOUR_VPS_IP|localhost|127\.0\.0\.1/.test(BACKEND_BASE_URL);
+
+export interface DeviceRegistration {
+  token: string;
+  lat: number;
+  lon: number;
+  place: string;
+  unit: 'metric' | 'imperial';
+  userName: string;
+  morningBrief: boolean;
+  briefHour: number;
+  tzOffset: number;
+  alerts: Record<'storm' | 'rain' | 'temperature' | 'wind', boolean>;
+}
+
 export const backendService = {
+  /** Registers this phone for server-sent alerts and the morning brief. */
+  registerDevice: async (reg: DeviceRegistration): Promise<boolean> => {
+    if (!backendConfigured) return false;
+    try {
+      await api.post('/devices', reg, { timeout: 8000 });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  unregisterDevice: async (token: string) => {
+    if (!backendConfigured) return;
+    await api.post('/devices/unregister', { token }).catch(() => {});
+  },
+
   /**
    * Save search history to local storage with optional backend sync
    */
@@ -39,6 +71,7 @@ export const backendService = {
     }
 
     // 2. Opportunistically sync with backend if available
+    if (!backendConfigured) return newItem;
     try {
       const response = await api.post('/search-history', item);
       return response.data;
@@ -49,59 +82,10 @@ export const backendService = {
   },
 
   /**
-   * Get search history from local storage with fallback
-   */
-  getSearchHistory: async (): Promise<SearchHistoryItem[]> => {
-    // 1. Try local storage first for instant response
-    let localItems: SearchHistoryItem[] = [];
-    try {
-      const stored = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        localItems = JSON.parse(stored);
-      }
-    } catch {
-      localItems = [];
-    }
-
-    // 2. Try remote sync if backend is active
-    try {
-      const response = await api.get('/search-history');
-      if (Array.isArray(response.data) && response.data.length > 0) {
-        return response.data;
-      }
-    } catch {
-      // Backend not running / offline - return local items smoothly
-    }
-
-    return localItems;
-  },
-
-  /**
-   * Delete a search history item
-   */
-  deleteSearchHistory: async (id: string) => {
-    try {
-      const stored = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        const list: SearchHistoryItem[] = JSON.parse(stored);
-        const updated = list.filter((i) => i.id !== id);
-        await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-      }
-    } catch {
-      // Ignore
-    }
-
-    try {
-      await api.delete(`/search-history/${id}`);
-    } catch {
-      // Ignore
-    }
-  },
-
-  /**
    * Log weather view analytics (silent)
    */
   logWeatherView: async (city: string, country: string) => {
+    if (!backendConfigured) return;
     try {
       await api.post('/analytics/view', { city, country });
     } catch {

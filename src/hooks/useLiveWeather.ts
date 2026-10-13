@@ -52,7 +52,8 @@ const processUpdate = () => {
   // Keep the next morning's push up to date with the newest forecast, so the OS can deliver
   // it at the chosen hour even if the app is closed.
   if (!notificationService.canSchedule()) return;
-  if (!settings.morningBrief) {
+  // The server sends the morning brief once this phone is registered; don't double up.
+  if (!settings.morningBrief || notifications.serverPush) {
     notificationService.cancelMorningBrief();
     return;
   }

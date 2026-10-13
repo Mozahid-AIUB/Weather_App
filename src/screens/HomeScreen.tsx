@@ -6,6 +6,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { ThemeFade, useTheme } from '../theme/ThemeProvider';
 import { useWeatherStore } from '../store/weatherStore';
 import { useLiveWeather } from '../hooks/useLiveWeather';
+import { usePushRegistration } from '../hooks/usePushRegistration';
 import { iconGroup } from '../utils/weather';
 import { SkyBackground } from '../components/sky/SkyBackground';
 import { TabBar, TabKey } from '../components/TabBar';
@@ -49,6 +50,7 @@ const TabScene: React.FC<{ active: boolean; keepAlive?: boolean; children: React
 /** App shell: living sky, the four tabs, global sheets and the live alert toast. */
 export const HomeScreen: React.FC = () => {
   useLiveWeather();
+  usePushRegistration();
   const { mode } = useTheme();
   const [tab, setTab] = useState<TabKey>('today');
   const [visited, setVisited] = useState<Set<TabKey>>(() => new Set<TabKey>(['today']));
