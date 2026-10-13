@@ -44,3 +44,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase / Google credentials — never commit (provided to EAS as secret files instead)
+google-services.json
+*firebase-adminsdk*.json
+play-service-account.json

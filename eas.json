@@ -9,24 +9,27 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "development"
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "preview"
     },
     "production": {
       "android": {
         "buildType": "app-bundle"
-      }
+      },
+      "environment": "production"
     }
   },
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-services.json",
+        "serviceAccountKeyPath": "./play-service-account.json",
         "track": "internal"
       }
     }
