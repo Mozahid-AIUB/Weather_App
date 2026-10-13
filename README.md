@@ -1,21 +1,20 @@
-# WeatherNow Ultra 🌤️⚡
+# WeatherNow 🌤️
 
-> A flagship, ultra-premium Weather App built with **React Native (Expo)**, **TypeScript**, and **NestJS + PostgreSQL**. Designed for the **US Market** and ready for deployment to **Apple App Store** and **Google Play Store**.
+> A premium, animated weather app built with **React Native (Expo)**, **TypeScript**, **Reanimated** and an optional **NestJS + PostgreSQL** backend. Made for users in the **US, Bangladesh and Europe**.
 
 ---
 
 ## 🌟 Key Features
 
-- 🤖 **Neural AI Push Notifications:** Proactive rain radar anticipation, severe storm defense (NWS), and personalized daily morning commute briefings.
-- 🌌 **Atmospheric Live Particle Animations:** Realistic rain drops, swirling snowflakes, radiant sun glows, and twinkling starry night skies.
-- 🛰️ **Next-Gen Doppler Radar & Satellite View:** Interactive precipitation cells, wind stream telemetry, and thermal heatmap layers.
-- 📊 **Apple Weather Style 7-Day Continuous Range Bars:** Day-by-day continuous gradient temperature bars with min/max dots and rain chance percentages.
-- 🕒 **24-Hour Hourly Forecast Carousel:** Frosted glass pills with live status and pop probability.
-- ☀️ **UV Index & Air Quality (AQI):** US EPA standard rating scales and health guidelines.
-- 📍 **US Metro Quick Selector:** Instant one-tap access to New York, Los Angeles, Miami, Chicago, Dallas, San Francisco, Seattle, and Las Vegas.
-- 🌙 **Insights & Environmental Intelligence:** Lunar phases (illuminance %), pollen counts (Tree, Grass, Ragweed), and outdoor activity comfort scoring.
-- 📱 **Floating Glassmorphic Bottom Dock:** iOS 18 style floating navigation between Weather, Radar, Cities, Insights, and Settings.
-- 🌡️ **Dual Unit System:** Full support for Fahrenheit (°F / mph / inHg / mi) and Celsius (°C / m/s / hPa / km).
+- 🌗 **Sun & moon theme:** a warm cream look from sunrise, a moonlit dark look after sunset, timed to the real sunrise/sunset of the place you are viewing (or pin Light / Dark in Settings).
+- 🌌 **Living sky:** glowing sun, moon with stars, drifting clouds, rain, snow and lightning, all on the UI thread with Reanimated.
+- ✨ **Animated icons everywhere:** layered weather icons (turning rays, drifting clouds, falling drops) and a micro-animation on every card icon.
+- 🔔 **Real-time alerts:** each update (every 10 min, plus whenever you return to the app) is checked for storms, rain, snow, heat, cold, wind, fog and sudden changes. Alerts appear as an in-app toast and in the notification center, and as push notifications on web and in installed builds.
+- ☀️ **Good-morning brief:** a friendly daily note at the hour you choose, written from the day's real forecast: sky outlook, when rain is likely, and whether to take an umbrella, sunscreen or a jacket. Personalised with your name.
+- 📍 **Precise location:** GPS names the neighbourhood, thana/upazila, village or quarter (Mirpur, Dhanmondi, Brooklyn…). Search covers small towns and villages too.
+- 🌍 **Locale aware:** °F/mph in the US, °C/km/h elsewhere; 12- or 24-hour clock from the device; times shown in each city's own timezone.
+- 🛰️ **Live radar:** RainViewer precipitation over a Leaflet map with a timeline scrubber.
+- 🗺️ **Places:** saved locations with live conditions at a glance.
 
 ---
 
@@ -23,36 +22,30 @@
 
 ```
 weather/
-├── App.tsx                          # Root App Component with Safe Area & Fonts
+├── App.tsx                      # Fonts, safe area, theme provider
 ├── src/
+│   ├── theme/                   # Day / night palettes and ThemeProvider (sun-based auto theme)
+│   ├── screens/                 # HomeScreen shell + Today, Radar, Places, Settings
 │   ├── components/
-│   │   ├── AnimatedWeatherBackground.tsx # Physics-based weather particles
-│   │   ├── AiPushControlModal.tsx        # AI Push Notification Control Hub
-│   │   ├── BottomTabBar.tsx              # Floating glassmorphic dock
-│   │   ├── ForecastCard.tsx              # Apple Weather style range bar row
-│   │   ├── HourlyForecastCard.tsx        # 24-hour frosted glass pill
-│   │   ├── InsightsView.tsx              # Lunar cycle & pollen outlook
-│   │   ├── RadarView.tsx                 # Doppler radar & satellite layer
-│   │   ├── SavedCitiesView.tsx           # Favorite US Metros
-│   │   ├── SettingsView.tsx              # Push alerts & unit preferences
-│   │   ├── StatCard.tsx                  # 2x2 atmospheric details grid
-│   │   └── UvAirQualityCard.tsx          # UV & Air Quality gauge widgets
-│   ├── screens/
-│   │   └── HomeScreen.tsx                # Flagship Weather Screen
+│   │   ├── sky/                 # Animated sky background
+│   │   ├── weather/             # Hero, hourly curve, daily range bars, details, sun arc, icons
+│   │   ├── notifications/       # Toast, alert banner, notification center
+│   │   ├── ui/                  # Card, sheet, segmented control, animated glyphs, header
+│   │   ├── SearchSheet.tsx
+│   │   ├── TabBar.tsx
+│   │   └── WeatherRadarMap.tsx  # Leaflet + RainViewer radar
+│   ├── hooks/useLiveWeather.ts  # Boot, 10-minute refresh, alert + morning-brief pipeline
 │   ├── services/
-│   │   ├── aiNotificationService.ts      # Neural AI Push Engine (expo-notifications)
-│   │   ├── weatherService.ts             # OpenWeather & Open-Meteo Fallback API
-│   │   └── backendService.ts             # NestJS API Client
-│   └── store/
-│       └── weatherStore.ts               # Zustand Global State Management
-└── backend/                              # NestJS + PostgreSQL Enterprise API
-    ├── src/
-    │   ├── main.ts                       # Swagger & NestJS bootstrap
-    │   ├── app.module.ts                 # TypeORM & Root Config
-    │   ├── search-history/               # Search History CRUD
-    │   └── analytics/                    # Weather Views Analytics
-    └── DEPLOY.md                         # VPS & Cloud Deployment Guide
+│   │   ├── weatherService.ts    # OpenWeather with Open-Meteo fallback, place search
+│   │   ├── locationService.ts   # GPS + precise reverse geocoding
+│   │   ├── alertEngine.ts       # Alert rules and the morning-brief writer
+│   │   ├── notificationService.ts # Web Notifications / expo-notifications
+│   │   └── backendService.ts    # NestJS API client (optional)
+│   └── store/                   # Zustand: weather, settings, notifications
+└── backend/                     # NestJS + PostgreSQL API (search history, analytics)
 ```
+
+> Push notifications need a browser that allows them (web) or an installed development/production build. Expo Go shows alerts in-app only.
 
 ---
 
@@ -93,4 +86,4 @@ eas build --platform ios
 ---
 
 ## 📄 License
-MIT License. Crafted with visual excellence.
+MIT License.

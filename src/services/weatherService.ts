@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CurrentWeather, ForecastData } from '../types/weather';
+import { CurrentWeather, ForecastData, ForecastItem, Place } from '../types/weather';
 import { OPENWEATHER_API_KEY, OPENWEATHER_BASE_URL } from '../constants';
 
 const api = axios.create({
@@ -15,19 +15,21 @@ const mapWmoToWeather = (code: number, isDay: boolean = true) => {
   if (code === 2) return { id: 802, main: 'Partly Cloudy', description: 'Partly cloudy', icon: `03${d}` };
   if (code === 3) return { id: 804, main: 'Overcast', description: 'Overcast', icon: `04${d}` };
   if ([45, 48].includes(code)) return { id: 741, main: 'Fog', description: 'Foggy', icon: `50${d}` };
-  if ([51, 53, 55].includes(code)) return { id: 300, main: 'Drizzle', description: 'Drizzle', icon: `09${d}` };
-  if ([61, 63, 65, 80, 81, 82].includes(code)) return { id: 500, main: 'Rain', description: 'Rain showers', icon: `10${d}` };
-  if ([71, 73, 75, 85, 86].includes(code)) return { id: 600, main: 'Snow', description: 'Snowfall', icon: `13${d}` };
+  if ([51, 53, 55, 56, 57].includes(code)) return { id: 300, main: 'Drizzle', description: 'Drizzle', icon: `09${d}` };
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { id: 500, main: 'Rain', description: 'Rain showers', icon: `10${d}` };
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return { id: 600, main: 'Snow', description: 'Snowfall', icon: `13${d}` };
   if ([95, 96, 99].includes(code)) return { id: 200, main: 'Thunderstorm', description: 'Thunderstorm', icon: `11${d}` };
   return { id: 800, main: 'Clear', description: 'Clear sky', icon: `01${d}` };
 };
 
-// Open-Meteo fallback fetcher with automatic reverse-geocoding
-const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = 'Current Location', country: string = 'BD') => {
+// Open-Meteo fallback fetcher with automatic reverse-geocoding.
+// Open-Meteo returns wall-clock times for the location (timezone=auto), so they are
+// converted back to real unix seconds with utc_offset_seconds.
+const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = '', country: string = '') => {
   let resolvedCity = cityName;
   let resolvedCountry = country;
 
-  if (!cityName || cityName === 'Current Location' || cityName === 'Your Location') {
+  if (!cityName) {
     try {
       const geo = await axios.get(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
@@ -38,21 +40,28 @@ const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = 'Curr
         resolvedCountry = geo.data.countryCode || country;
       }
     } catch {
-      // ignore
+      resolvedCity = 'My Location';
     }
   }
 
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto`;
-  const res = await axios.get(url);
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,visibility' +
+    '&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,precipitation_probability,is_day' +
+    '&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset' +
+    '&wind_speed_unit=ms&forecast_days=7&timezone=auto';
+  const res = await axios.get(url, { timeout: 10000 });
   const data = res.data;
+  const offset: number = data.utc_offset_seconds ?? 0;
+  const toUnix = (local: string) => Math.floor(Date.parse(`${local}Z`) / 1000) - offset;
 
   const current = data.current;
-  const isDay = current.is_day === 1;
-  const weatherCond = mapWmoToWeather(current.weather_code, isDay);
+  const now = Math.floor(Date.now() / 1000);
 
   const currentWeather: CurrentWeather = {
     name: resolvedCity,
-    dt: Math.floor(Date.now() / 1000),
+    dt: now,
+    timezone: offset,
     main: {
       temp: current.temperature_2m,
       feels_like: current.apparent_temperature,
@@ -61,52 +70,50 @@ const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = 'Curr
       humidity: current.relative_humidity_2m,
       pressure: Math.round(current.surface_pressure),
     },
-    weather: [weatherCond],
+    weather: [mapWmoToWeather(current.weather_code, current.is_day === 1)],
     wind: {
       speed: current.wind_speed_10m,
       deg: current.wind_direction_10m,
+      gust: current.wind_gusts_10m,
     },
-    visibility: 10000,
+    visibility: Math.min(current.visibility ?? 10000, 10000),
     sys: {
-      country: country,
-      sunrise: data.daily?.sunrise?.[0] ? Math.floor(new Date(data.daily.sunrise[0]).getTime() / 1000) : Math.floor(Date.now() / 1000) - 20000,
-      sunset: data.daily?.sunset?.[0] ? Math.floor(new Date(data.daily.sunset[0]).getTime() / 1000) : Math.floor(Date.now() / 1000) + 20000,
+      country: resolvedCountry,
+      sunrise: data.daily?.sunrise?.[0] ? toUnix(data.daily.sunrise[0]) : now - 20000,
+      sunset: data.daily?.sunset?.[0] ? toUnix(data.daily.sunset[0]) : now + 20000,
     },
     coord: { lat, lon },
   };
 
-  // Convert hourly / daily into 5-day forecast list format
-  const list = [];
-  const times = data.hourly?.time || [];
-  for (let i = 0; i < Math.min(times.length, 40); i += 3) {
-    const timeStr = times[i];
-    const wCode = data.hourly.weather_code[i];
-    const itemWeather = mapWmoToWeather(wCode, true);
+  // Convert hourly data into the OpenWeather 3-hour forecast list format, starting from now.
+  const list: ForecastItem[] = [];
+  const times: string[] = data.hourly?.time || [];
+  const firstIndex = Math.max(0, times.findIndex((t) => toUnix(t) >= now - 1800));
+  for (let i = firstIndex + 3; i < times.length && list.length < 40; i += 3) {
+    const temp = data.hourly.temperature_2m[i];
     list.push({
-      dt: Math.floor(new Date(timeStr).getTime() / 1000),
+      dt: toUnix(times[i]),
       main: {
-        temp: data.hourly.temperature_2m[i],
-        feels_like: data.hourly.temperature_2m[i],
-        temp_min: data.hourly.temperature_2m[i] - 1,
-        temp_max: data.hourly.temperature_2m[i] + 1,
+        temp,
+        feels_like: data.hourly.apparent_temperature?.[i] ?? temp,
+        temp_min: temp,
+        temp_max: temp,
         humidity: data.hourly.relative_humidity_2m[i],
         pressure: 1013,
       },
-      weather: [itemWeather],
+      weather: [mapWmoToWeather(data.hourly.weather_code[i], data.hourly.is_day?.[i] !== 0)],
       wind: {
-        speed: data.hourly.wind_speed_10m[i] || 3,
-        deg: 180,
+        speed: data.hourly.wind_speed_10m[i] ?? 0,
+        deg: data.hourly.wind_direction_10m?.[i] ?? 0,
       },
-      dt_txt: timeStr.replace('T', ' ') + ':00',
+      pop: (data.hourly.precipitation_probability?.[i] ?? 0) / 100,
+      dt_txt: times[i].replace('T', ' ') + ':00',
     });
   }
 
   const forecast: ForecastData = {
     list,
-    city: {
-      name: cityName,
-      country: country,
-    },
+    city: { name: resolvedCity, country: resolvedCountry, timezone: offset },
   };
 
   return { currentWeather, forecast };
@@ -114,125 +121,79 @@ const fetchOpenMeteo = async (lat: number, lon: number, cityName: string = 'Curr
 
 export const weatherService = {
   /**
-   * Get current weather by city name
+   * Current conditions + 5-day forecast for a coordinate. Tries OpenWeather first and
+   * falls back to Open-Meteo (no key needed) if the key is missing, pending or rate-limited.
    */
-  getCurrentWeatherByCity: async (city: string): Promise<CurrentWeather> => {
+  getWeather: async (lat: number, lon: number): Promise<{ current: CurrentWeather; forecast: ForecastData }> => {
     try {
-      const response = await api.get('/weather', {
-        params: {
-          q: city,
-          appid: OPENWEATHER_API_KEY,
-          units: 'metric',
-        },
-      });
-      return response.data;
-    } catch (err: any) {
-      // If 401 (API key pending activation) or other error, fallback to geocoding + Open-Meteo
-      const geo = await weatherService.searchCities(city);
-      if (geo && geo.length > 0) {
-        const item = geo[0];
-        const { currentWeather } = await fetchOpenMeteo(item.lat, item.lon, item.name, item.country);
-        return currentWeather;
-      }
-      throw err;
+      const params = { lat, lon, appid: OPENWEATHER_API_KEY, units: 'metric' };
+      const [current, forecast] = await Promise.all([
+        api.get<CurrentWeather>('/weather', { params }),
+        api.get<ForecastData>('/forecast', { params: { ...params, cnt: 40 } }),
+      ]);
+      return { current: current.data, forecast: forecast.data };
+    } catch {
+      const { currentWeather, forecast } = await fetchOpenMeteo(lat, lon);
+      return { current: currentWeather, forecast };
     }
   },
 
-  /**
-   * Get current weather by coordinates
-   */
-  getCurrentWeatherByCoords: async (lat: number, lon: number): Promise<CurrentWeather> => {
+  /** Current conditions only — used for the saved places list. */
+  getCurrent: async (lat: number, lon: number): Promise<CurrentWeather> => {
     try {
-      const response = await api.get('/weather', {
-        params: {
-          lat,
-          lon,
-          appid: OPENWEATHER_API_KEY,
-          units: 'metric',
-        },
+      const res = await api.get<CurrentWeather>('/weather', {
+        params: { lat, lon, appid: OPENWEATHER_API_KEY, units: 'metric' },
+        timeout: 6000,
       });
-      return response.data;
-    } catch (err: any) {
-      const { currentWeather } = await fetchOpenMeteo(lat, lon, 'Your Location', 'BD');
+      return res.data;
+    } catch {
+      const { currentWeather } = await fetchOpenMeteo(lat, lon, ' ');
       return currentWeather;
     }
   },
 
   /**
-   * Get 5-day forecast by city name
+   * Search places down to town / upazila / village level. Open-Meteo (GeoNames) covers small
+   * populated places and gives district + state; OpenWeather geocoding is the fallback.
    */
-  getForecastByCity: async (city: string): Promise<ForecastData> => {
-    try {
-      const response = await api.get('/forecast', {
-        params: {
-          q: city,
-          appid: OPENWEATHER_API_KEY,
-          units: 'metric',
-          cnt: 40,
-        },
-      });
-      return response.data;
-    } catch (err: any) {
-      const geo = await weatherService.searchCities(city);
-      if (geo && geo.length > 0) {
-        const item = geo[0];
-        const { forecast } = await fetchOpenMeteo(item.lat, item.lon, item.name, item.country);
-        return forecast;
-      }
-      throw err;
-    }
-  },
-
-  /**
-   * Get 5-day forecast by coordinates
-   */
-  getForecastByCoords: async (lat: number, lon: number): Promise<ForecastData> => {
-    try {
-      const response = await api.get('/forecast', {
-        params: {
-          lat,
-          lon,
-          appid: OPENWEATHER_API_KEY,
-          units: 'metric',
-          cnt: 40,
-        },
-      });
-      return response.data;
-    } catch (err: any) {
-      const { forecast } = await fetchOpenMeteo(lat, lon, 'Your Location', 'BD');
-      return forecast;
-    }
-  },
-
-  /**
-   * Search cities (geocoding API with fallback)
-   */
-  searchCities: async (query: string) => {
-    try {
-      const response = await axios.get('https://api.openweathermap.org/geo/1.0/direct', {
-        params: {
-          q: query,
-          limit: 6,
-          appid: OPENWEATHER_API_KEY,
-        },
-        timeout: 4000,
-      });
-      if (response.data && response.data.length > 0) {
-        return response.data;
-      }
-    } catch {
-      // fallback to open-meteo geocoding
-    }
+  searchPlaces: async (query: string): Promise<Place[]> => {
+    const join = (parts: (string | undefined)[], name: string) => {
+      const seen = new Set([name.toLowerCase()]);
+      return parts
+        .filter((p): p is string => !!p && !seen.has(p.toLowerCase()) && !!seen.add(p.toLowerCase()))
+        .join(', ');
+    };
 
     try {
-      const geoRes = await axios.get(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=en&format=json`);
-      if (geoRes.data?.results) {
+      const geoRes = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
+        params: { name: query, count: 8, language: 'en', format: 'json' },
+        timeout: 5000,
+      });
+      if (geoRes.data?.results?.length) {
         return geoRes.data.results.map((r: any) => ({
           name: r.name,
           lat: r.latitude,
           lon: r.longitude,
-          country: r.country_code?.toUpperCase() || r.country || '',
-          state: r.admin1 || '',
+          country: r.country_code?.toUpperCase() || '',
+          region: join([r.admin2, r.admin1, r.country], r.name),
+        }));
+      }
+    } catch {
+      // fall back to OpenWeather geocoding
+    }
+
+    try {
+      const response = await axios.get('https://api.openweathermap.org/geo/1.0/direct', {
+        params: { q: query, limit: 6, appid: OPENWEATHER_API_KEY },
+        timeout: 4000,
+      });
+      if (Array.isArray(response.data)) {
+        return response.data.map((r: any) => ({
+          name: r.name,
+          lat: r.lat,
+          lon: r.lon,
+          country: r.country || '',
+          region: join([r.state, r.country], r.name),
         }));
       }
     } catch {

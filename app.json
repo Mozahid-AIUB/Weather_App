@@ -42,7 +42,8 @@
     "plugins": [
       "expo-location",
       "expo-font",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-splash-screen"
     ],
     "extra": {
       "eas": {

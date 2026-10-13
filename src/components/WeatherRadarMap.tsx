@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { COLORS, FONTS } from '../constants';
+import { FONTS } from '../theme/tokens';
+
+const LOADING_ACCENT = '#9DB4FF';
 
 const { width } = Dimensions.get('window');
 
@@ -604,11 +606,14 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
         maxWidth: 120
       }).addTo(map);
 
-      // Carto Voyager Base Map (Clean, detailed, real cities and highways)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        subdomains: 'abcd',
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      // Esri light-grey canvas + reference labels (no API key needed; CARTO now requires one)
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 16,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+      }).addTo(map);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 16,
+        zIndex: 200
       }).addTo(map);
 
       // Custom Blue Doppler Radar Location Marker
@@ -875,7 +880,7 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
             onLoadEnd={() => setMapLoaded(true)}
             renderLoading={() => (
               <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={COLORS.accent} />
+                <ActivityIndicator size="large" color={LOADING_ACCENT} />
                 <Text style={styles.loadingText}>Connecting to Doppler Radar...</Text>
               </View>
             )}
@@ -888,20 +893,11 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     width: '100%',
-    height: 480,
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#0B1426',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 8,
-    position: 'relative',
-    marginBottom: 16,
   },
   webContainer: {
     width: '100%',
@@ -930,7 +926,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: COLORS.accent,
+    color: LOADING_ACCENT,
     fontFamily: FONTS.semiBold,
     fontSize: 13,
   },

@@ -1,210 +1,216 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CurrentWeather, ForecastData, DailyForecast, SearchHistoryItem } from '../types/weather';
+import { CurrentWeather, DailyItem, ForecastItem, HourlyItem, Place } from '../types/weather';
 import { weatherService } from '../services/weatherService';
+import { locationService } from '../services/locationService';
 import { backendService } from '../services/backendService';
-import { DAYS } from '../constants';
+import { cityDateKey, cityHour, countryName } from '../utils/format';
+
+type Status = 'idle' | 'loading' | 'ready' | 'error';
 
 interface WeatherState {
-  // Data
-  currentWeather: CurrentWeather | null;
-  forecast: ForecastData | null;
-  dailyForecast: DailyForecast[];
-  hourlyForecast: HourlyForecastItem[];
-  searchHistory: SearchHistoryItem[];
-  recentCities: string[];
-
-  // UI State
-  isLoading: boolean;
-  isRefreshing: boolean;
+  place: Place | null;
+  /** Place being loaded when switching, so the UI can name it and show a skeleton. */
+  pending: Place | null;
+  isGps: boolean;
+  current: CurrentWeather | null;
+  forecast: ForecastItem[];
+  hourly: HourlyItem[];
+  daily: DailyItem[];
+  status: Status;
   error: string | null;
-  unit: 'metric' | 'imperial';
+  isRefreshing: boolean;
+  lastUpdated: number | null;
+  places: Place[];
+  /** Country of the last GPS fix — drives "Popular in …" suggestions. */
+  homeCountry: string | null;
 
-  // Actions
-  fetchWeatherByCity: (city: string) => Promise<void>;
-  fetchWeatherByCoords: (lat: number, lon: number) => Promise<void>;
-  refreshWeather: () => Promise<void>;
-  loadSearchHistory: () => Promise<void>;
-  addRecentCity: (city: string) => void;
-  clearError: () => void;
-  toggleUnit: () => void;
+  /** Load weather for a place. Pass `isGps` for the device location (name is reverse-geocoded). */
+  loadPlace: (place: Place, opts?: { isGps?: boolean; save?: boolean }) => Promise<boolean>;
+  locate: () => Promise<boolean>;
+  refresh: (opts?: { silent?: boolean }) => Promise<void>;
+  hydratePlaces: () => Promise<void>;
+  savePlace: (place: Place) => void;
+  removePlace: (place: Place) => void;
 }
 
-export interface HourlyForecastItem {
-  time: string;
-  temp: number;
-  icon: string;
-  pop?: number;
-  condition: string;
-}
+const PLACES_KEY = '@weathernow_places_v1';
+const LAST_PLACE_KEY = '@weathernow_last_place_v1';
+const HOME_KEY = '@weathernow_home_country_v1';
 
-const parseDailyForecast = (forecast: ForecastData): DailyForecast[] => {
-  const dailyMap: Record<string, ForecastItem[]> = {};
+// Only the newest request may write to the store, so a slow response can't overwrite a newer place.
+let requestSeq = 0;
 
-  forecast.list.forEach((item: any) => {
-    const date = item.dt_txt.split(' ')[0];
-    if (!dailyMap[date]) dailyMap[date] = [];
-    dailyMap[date].push(item);
+export const samePlace = (a?: Place | null, b?: Place | null) =>
+  !!a && !!b && Math.abs(a.lat - b.lat) < 0.02 && Math.abs(a.lon - b.lon) < 0.02;
+
+const buildHourly = (current: CurrentWeather, list: ForecastItem[]): HourlyItem[] => [
+  {
+    dt: current.dt,
+    temp: current.main.temp,
+    icon: current.weather[0]?.icon || '01d',
+    pop: list[0]?.pop ?? 0,
+    isNow: true,
+  },
+  ...list.slice(0, 8).map((item) => ({
+    dt: item.dt,
+    temp: item.main.temp,
+    icon: item.weather[0]?.icon || '01d',
+    pop: item.pop ?? 0,
+    isNow: false,
+  })),
+];
+
+const buildDaily = (current: CurrentWeather, list: ForecastItem[]): DailyItem[] => {
+  const tz = current.timezone;
+  const groups = new Map<string, ForecastItem[]>();
+  list.forEach((item) => {
+    const key = cityDateKey(item.dt, tz);
+    groups.set(key, [...(groups.get(key) || []), item]);
   });
 
-  return Object.entries(dailyMap)
-    .slice(0, 7)
-    .map(([date, items]) => {
-      const temps = items.map((i: any) => i.main.temp);
-      const d = new Date(date);
+  const todayKey = cityDateKey(current.dt, tz);
+  return Array.from(groups.entries())
+    .slice(0, 6)
+    .map(([dateKey, items]) => {
+      const temps = items.map((i) => i.main.temp);
+      if (dateKey === todayKey) temps.push(current.main.temp);
+      // Represent the day by its midday slot rather than a night-time one.
+      const midday = items.reduce((best, i) =>
+        Math.abs(cityHour(i.dt, tz) - 13) < Math.abs(cityHour(best.dt, tz) - 13) ? i : best
+      );
+      const cond = midday.weather[0];
       return {
-        date,
-        day: DAYS[d.getDay()],
-        high: Math.round(Math.max(...temps)),
-        low: Math.round(Math.min(...temps)),
-        condition: items[Math.floor(items.length / 2)].weather[0],
-        humidity: Math.round(items.reduce((sum: number, i: any) => sum + i.main.humidity, 0) / items.length),
+        dateKey,
+        dt: items[0].dt,
+        high: Math.max(...temps),
+        low: Math.min(...temps),
+        icon: (cond?.icon || '01d').replace('n', 'd'),
+        conditionId: cond?.id ?? 800,
+        description: cond?.description || '',
+        pop: Math.max(...items.map((i) => i.pop ?? 0)),
       };
     });
 };
 
-const parseHourlyForecast = (forecast: ForecastData): HourlyForecastItem[] => {
-  return forecast.list.slice(0, 12).map((item) => {
-    const d = new Date(item.dt * 1000);
-    const hour = d.getHours();
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const h12 = hour % 12 || 12;
-    return {
-      time: `${h12} ${ampm}`,
-      temp: Math.round(item.main.temp),
-      icon: item.weather[0]?.icon || '01d',
-      condition: item.weather[0]?.main || 'Clear',
-    };
-  });
-};
-
-// Fix TS type
-type ForecastItem = {
-  dt: number;
-  main: { temp: number; humidity: number };
-  weather: { id: number; main: string; description: string; icon: string }[];
-  dt_txt: string;
-};
-
 export const useWeatherStore = create<WeatherState>((set, get) => ({
-  currentWeather: null,
-  forecast: null,
-  dailyForecast: [],
-  hourlyForecast: [],
-  searchHistory: [],
-  recentCities: [],
-  isLoading: false,
-  isRefreshing: false,
+  place: null,
+  pending: null,
+  isGps: false,
+  current: null,
+  forecast: [],
+  hourly: [],
+  daily: [],
+  status: 'idle',
   error: null,
-  unit: 'imperial',
+  isRefreshing: false,
+  lastUpdated: null,
+  places: [],
+  homeCountry: null,
 
-  fetchWeatherByCity: async (city: string) => {
-    set({ isLoading: true, error: null });
+  loadPlace: async (place, opts = {}) => {
+    const isGps = !!opts.isGps;
+    const seq = ++requestSeq;
+    const switching = !samePlace(place, get().place);
+    set({ status: switching || !get().current ? 'loading' : get().status, error: null, pending: switching ? place : null });
+
     try {
-      const [current, forecast] = await Promise.all([
-        weatherService.getCurrentWeatherByCity(city),
-        weatherService.getForecastByCity(city),
+      const [{ current, forecast }, geo] = await Promise.all([
+        weatherService.getWeather(place.lat, place.lon),
+        isGps && !place.name ? locationService.reverseGeocode(place.lat, place.lon) : Promise.resolve(null),
       ]);
+      if (seq !== requestSeq) return false;
 
-      const dailyForecast = parseDailyForecast(forecast);
-      const hourlyForecast = parseHourlyForecast(forecast);
-
-      set({
-        currentWeather: current,
-        forecast,
-        dailyForecast,
-        hourlyForecast,
-        isLoading: false,
-      });
-
-      // Save to backend (VPS PostgreSQL)
-      backendService.saveSearchHistory({
-        city: current.name,
-        country: current.sys.country,
-        lat: current.coord.lat,
-        lon: current.coord.lon,
-      });
-
-      // Save recent cities to AsyncStorage
-      get().addRecentCity(city);
-
-    } catch (error: any) {
-      set({
-        isLoading: false,
-        error: error?.response?.data?.message || 'City not found. Please try again.',
-      });
-    }
-  },
-
-  fetchWeatherByCoords: async (lat: number, lon: number) => {
-    set({ isLoading: true, error: null });
-    try {
-      const [current, forecast] = await Promise.all([
-        weatherService.getCurrentWeatherByCoords(lat, lon),
-        weatherService.getForecastByCoords(lat, lon),
-      ]);
-
-      const dailyForecast = parseDailyForecast(forecast);
-      const hourlyForecast = parseHourlyForecast(forecast);
+      const resolved: Place = {
+        ...place,
+        name: geo?.name || place.name || current.name,
+        region: geo?.region || place.region || countryName(place.country || current.sys.country),
+        country: geo?.country || place.country || current.sys.country,
+      };
+      if (current.timezone === undefined) current.timezone = forecast.city?.timezone;
 
       set({
-        currentWeather: current,
-        forecast,
-        dailyForecast,
-        hourlyForecast,
-        isLoading: false,
+        place: resolved,
+        pending: null,
+        isGps,
+        current,
+        forecast: forecast.list,
+        hourly: buildHourly(current, forecast.list),
+        daily: buildDaily(current, forecast.list),
+        status: 'ready',
+        lastUpdated: Date.now(),
       });
 
-      backendService.logWeatherView(current.name, current.sys.country);
-
-    } catch (error: any) {
-      set({
-        isLoading: false,
-        error: 'Failed to fetch weather for your location.',
-      });
-    }
-  },
-
-  refreshWeather: async () => {
-    const { currentWeather } = get();
-    if (!currentWeather) return;
-    set({ isRefreshing: true });
-    try {
-      await get().fetchWeatherByCoords(currentWeather.coord.lat, currentWeather.coord.lon);
-    } finally {
-      set({ isRefreshing: false });
-    }
-  },
-
-  loadSearchHistory: async () => {
-    try {
-      // Try from VPS first
-      const history = await backendService.getSearchHistory();
-      if (history.length > 0) {
-        set({ searchHistory: history });
-        return;
+      AsyncStorage.setItem(LAST_PLACE_KEY, JSON.stringify({ ...resolved, isGps })).catch(() => {});
+      if (isGps && resolved.country && resolved.country !== get().homeCountry) {
+        set({ homeCountry: resolved.country });
+        AsyncStorage.setItem(HOME_KEY, resolved.country).catch(() => {});
       }
-
-      // Fallback: local AsyncStorage
-      const stored = await AsyncStorage.getItem('recent_cities');
-      if (stored) {
-        set({ recentCities: JSON.parse(stored) });
+      if (opts.save) {
+        get().savePlace(resolved);
+        backendService.saveSearchHistory({ city: resolved.name, country: resolved.country, lat: resolved.lat, lon: resolved.lon });
       }
+      if (switching) backendService.logWeatherView(resolved.name, resolved.country);
+      return true;
     } catch {
-      // fail silently
+      if (seq !== requestSeq) return false;
+      set({
+        pending: null,
+        status: get().current ? 'ready' : 'error',
+        error: "Couldn't reach the weather service. Check your connection and try again.",
+      });
+      return false;
     }
   },
 
-  addRecentCity: (city: string) => {
-    const current = get().recentCities;
-    const updated = [city, ...current.filter((c) => c.toLowerCase() !== city.toLowerCase())].slice(0, 10);
-    set({ recentCities: updated });
-    AsyncStorage.setItem('recent_cities', JSON.stringify(updated));
+  locate: async () => {
+    const coords = await locationService.getCurrentCoords();
+    if (!coords) return false;
+    return get().loadPlace({ name: '', country: '', lat: coords.lat, lon: coords.lon }, { isGps: true });
   },
 
-  clearError: () => set({ error: null }),
+  refresh: async ({ silent = false } = {}) => {
+    const { place, isGps, status } = get();
+    if (!place || status === 'loading') return;
+    if (!silent) set({ isRefreshing: true });
+    try {
+      await get().loadPlace(place, { isGps });
+    } finally {
+      if (!silent) set({ isRefreshing: false });
+    }
+  },
 
-  toggleUnit: () => {
-    set((state) => ({ unit: state.unit === 'metric' ? 'imperial' : 'metric' }));
+  hydratePlaces: async () => {
+    try {
+      const [raw, home] = await Promise.all([AsyncStorage.getItem(PLACES_KEY), AsyncStorage.getItem(HOME_KEY)]);
+      if (raw) set({ places: JSON.parse(raw) });
+      if (home) set({ homeCountry: home });
+    } catch {
+      // keep empty list
+    }
+  },
+
+  savePlace: (place) => {
+    const existing = get().places.find((p) => samePlace(p, place));
+    const entry: Place = { ...place, count: (existing?.count ?? 0) + 1, lastUsed: Date.now() };
+    const updated = [entry, ...get().places.filter((p) => !samePlace(p, place))].slice(0, 12);
+    set({ places: updated });
+    AsyncStorage.setItem(PLACES_KEY, JSON.stringify(updated)).catch(() => {});
+  },
+
+  removePlace: (place) => {
+    const updated = get().places.filter((p) => !samePlace(p, place));
+    set({ places: updated });
+    AsyncStorage.setItem(PLACES_KEY, JSON.stringify(updated)).catch(() => {});
   },
 }));
+
+/** The place that was showing when the app was last closed. */
+export const loadLastPlace = async (): Promise<(Place & { isGps?: boolean }) | null> => {
+  try {
+    const raw = await AsyncStorage.getItem(LAST_PLACE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};

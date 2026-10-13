@@ -23,6 +23,8 @@ export interface Wind {
 export interface CurrentWeather {
   name: string;
   dt: number;
+  /** Shift in seconds from UTC for the location. */
+  timezone?: number;
   main: WeatherMain;
   weather: WeatherCondition[];
   wind: Wind;
@@ -43,6 +45,8 @@ export interface ForecastItem {
   main: WeatherMain;
   weather: WeatherCondition[];
   wind: Wind;
+  /** Probability of precipitation, 0–1. */
+  pop?: number;
   dt_txt: string;
 }
 
@@ -51,16 +55,39 @@ export interface ForecastData {
   city: {
     name: string;
     country: string;
+    timezone?: number;
   };
 }
 
-export interface DailyForecast {
-  date: string;
-  day: string;
+export interface Place {
+  name: string;
+  country: string;
+  /** Wider context under the name, e.g. "Dhaka, Bangladesh". */
+  region?: string;
+  lat: number;
+  lon: number;
+  /** How many times the user picked this place, and when last (saved places only). */
+  count?: number;
+  lastUsed?: number;
+}
+
+export interface HourlyItem {
+  dt: number;
+  temp: number;
+  icon: string;
+  pop: number;
+  isNow: boolean;
+}
+
+export interface DailyItem {
+  dateKey: string;
+  dt: number;
   high: number;
   low: number;
-  condition: WeatherCondition;
-  humidity: number;
+  icon: string;
+  conditionId: number;
+  description: string;
+  pop: number;
 }
 
 export interface SearchHistoryItem {
