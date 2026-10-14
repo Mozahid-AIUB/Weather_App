@@ -173,7 +173,6 @@ export const TodayScreen: React.FC<Props> = ({ onOpenSearch, onOpenNotifications
         <DailyCard days={daily} currentTemp={current.main.temp} unit={unit} tz={current.timezone} delay={460} />
         <DetailsGrid current={current} nextPop={forecast[0]?.pop ?? 0} unit={unit} delay={540} />
         <SunCard sunrise={current.sys.sunrise} sunset={current.sys.sunset} tz={current.timezone} now={now} delay={600} />
-        <Text style={styles.footer}>Weather data from OpenWeather and Open-Meteo · Refreshes every 10 minutes</Text>
       </ScrollView>
     </View>
   );
@@ -301,13 +300,5 @@ const makeStyles = ({ colors, fonts, spacing, radius }: Theme) =>
       fontFamily: fonts.semiBold,
       fontSize: 13,
       color: '#FFFFFF',
-    },
-    footer: {
-      fontFamily: fonts.regular,
-      fontSize: 12,
-      color: colors.textMuted,
-      textAlign: 'center',
-      paddingHorizontal: spacing.xxl,
-      marginTop: spacing.sm,
     },
   });
