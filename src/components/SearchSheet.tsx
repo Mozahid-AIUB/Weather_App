@@ -7,6 +7,7 @@ import { Sheet } from './ui/Sheet';
 import { PressableScale } from './ui/PressableScale';
 import { AnimatedGlyph, GlyphName, Motion } from './ui/AnimatedGlyph';
 import { weatherService } from '../services/weatherService';
+import { locationService } from '../services/locationService';
 import { useWeatherStore } from '../store/weatherStore';
 import { countryFlag, localeRegion, popularFor, POPULAR_WORLD } from '../constants';
 import type { Place } from '../types/weather';
@@ -61,7 +62,7 @@ export const SearchSheet: React.FC<Props> = ({ visible, onClose, onPicked }) => 
   const [results, setResults] = useState<Place[]>([]);
   const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [locateFailed, setLocateFailed] = useState(false);
+  const [locateIssue, setLocateIssue] = useState<'denied' | 'blocked' | 'error' | null>(null);
   const loadPlace = useWeatherStore((s) => s.loadPlace);
   const locate = useWeatherStore((s) => s.locate);
   const places = useWeatherStore((s) => s.places);
@@ -72,7 +73,7 @@ export const SearchSheet: React.FC<Props> = ({ visible, onClose, onPicked }) => 
 
   useEffect(() => {
     if (visible) {
-      setLocateFailed(false);
+      setLocateIssue(null);
       const t = setTimeout(() => inputRef.current?.focus(), 350);
       return () => clearTimeout(t);
     }
@@ -130,13 +131,17 @@ export const SearchSheet: React.FC<Props> = ({ visible, onClose, onPicked }) => 
   };
 
   const useGps = async () => {
+    if (locateIssue === 'blocked') {
+      locationService.openSettings();
+      return;
+    }
     setLocating(true);
-    const ok = await locate();
+    const result = await locate('always');
     setLocating(false);
-    if (ok) {
+    if (result === 'ok') {
       onClose();
       onPicked?.();
-    } else setLocateFailed(true);
+    } else setLocateIssue(result);
   };
 
   const showResults = query.trim().length >= 2;
@@ -178,7 +183,15 @@ export const SearchSheet: React.FC<Props> = ({ visible, onClose, onPicked }) => 
           </View>
           <View style={styles.rowText}>
             <Text style={styles.rowTitle}>Use my current location</Text>
-            <Text style={styles.rowSub}>{locateFailed ? 'Location is off or blocked. Allow it in settings.' : 'Precise to your neighbourhood or village'}</Text>
+            <Text style={[styles.rowSub, locateIssue && { color: colors.warning }]}>
+              {locateIssue === 'blocked'
+                ? 'Location is off for WeatherNow. Tap to open Settings.'
+                : locateIssue === 'denied'
+                  ? 'Location permission was not allowed. Tap to try again.'
+                  : locateIssue === 'error'
+                    ? "Couldn't get your location. Is GPS turned on?"
+                    : 'Precise to your neighbourhood or village'}
+            </Text>
           </View>
         </PressableScale>
 

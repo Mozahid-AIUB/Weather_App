@@ -65,13 +65,20 @@ export const PushStatus: React.FC = () => {
   // No system notifications here (e.g. Expo Go): alerts still arrive in-app, nothing to configure.
   if (support === 'none' || permission === 'unsupported') return null;
 
-  if (permission === 'denied') {
+  if (permission === 'blocked') {
     return (
       <View style={[styles.status, { backgroundColor: `${colors.warning}14`, borderColor: `${colors.warning}33` }]}>
         <AnimatedGlyph name="bell-off-outline" size={20} color={colors.warning} motion="none" />
         <Text style={styles.statusText}>
-          Notifications are blocked. Allow them in your {support === 'web' ? 'browser site settings' : 'phone settings'} to get alerts outside the app.
+          {support === 'web'
+            ? 'Notifications are blocked for this site. Allow them in your browser settings.'
+            : 'Notifications are turned off for WeatherNow. Turn them on to get alerts outside the app.'}
         </Text>
+        {support !== 'web' && (
+          <PressableScale style={[styles.enable, { backgroundColor: colors.warning }]} onPress={notificationService.openSettings} accessibilityRole="button">
+            <Text style={[styles.enableText, { color: '#FFFFFF' }]}>Open settings</Text>
+          </PressableScale>
+        )}
       </View>
     );
   }

@@ -6,6 +6,7 @@ import { Theme, useStyles, useTheme } from '../theme/ThemeProvider';
 import { samePlace, useWeatherStore } from '../store/weatherStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { weatherService } from '../services/weatherService';
+import { locationService } from '../services/locationService';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { PressableScale } from '../components/ui/PressableScale';
 import { AnimatedGlyph } from '../components/ui/AnimatedGlyph';
@@ -128,7 +129,9 @@ export const PlacesScreen: React.FC<Props> = ({ onOpenSearch, onOpenNotification
           <Animated.View entering={FadeInDown.duration(400)}>
             <PressableScale
               onPress={async () => {
-                if (await locate()) onSelect();
+                const result = await locate('always');
+                if (result === 'ok') onSelect();
+                else if (result === 'blocked') locationService.openSettings();
               }}
               style={[styles.card, styles.locateCard]}
               scaleTo={0.97}

@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 
 export interface ResolvedLocation {
@@ -87,17 +88,38 @@ const reverseWeb = async (lat: number, lon: number): Promise<ResolvedLocation | 
   };
 };
 
+export type LocateResult = 'ok' | 'denied' | 'blocked' | 'error';
+const ASKED_KEY = '@weathernow_location_asked_v1';
+
 export const locationService = {
-  /** Asks for permission and returns the device position, or null if unavailable. */
-  getCurrentCoords: async (): Promise<{ lat: number; lon: number } | null> => {
+  /**
+   * Device position. `ask` controls the system prompt: 'first-time' shows it only on the very first
+   * launch (never nags after a "no"), 'always' is for an explicit "use my location" tap.
+   * 'blocked' means the phone won't show the prompt again — send the user to Settings.
+   */
+  getCurrentCoords: async (ask: 'first-time' | 'always' = 'always'): Promise<{ coords: { lat: number; lon: number } | null; result: LocateResult }> => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return null;
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      return { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      let perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        const askedBefore = !!(await AsyncStorage.getItem(ASKED_KEY));
+        if (!perm.canAskAgain) return { coords: null, result: 'blocked' };
+        if (ask === 'first-time' && askedBefore) return { coords: null, result: 'denied' };
+        await AsyncStorage.setItem(ASKED_KEY, '1');
+        perm = await Location.requestForegroundPermissionsAsync();
+        if (perm.status !== 'granted') return { coords: null, result: perm.canAskAgain ? 'denied' : 'blocked' };
+      }
+      // A recent cached fix makes startup instant; fall back to a fresh one.
+      const last = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 }).catch(() => null);
+      const pos = last ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+      return { coords: { lat: pos.coords.latitude, lon: pos.coords.longitude }, result: 'ok' };
     } catch {
-      return null;
+      return { coords: null, result: 'error' };
     }
+  },
+
+  /** Opens this app's page in the phone's Settings (to allow location or notifications). */
+  openSettings: () => {
+    Linking.openSettings().catch(() => {});
   },
 
   /** Most precise available name: device geocoder → Nominatim → BigDataCloud. */

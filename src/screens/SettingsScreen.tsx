@@ -30,6 +30,13 @@ const ALERT_ROWS: { key: keyof AlertPrefs; label: string; sub: string; icon: Gly
   { key: 'change', label: 'Sudden changes', sub: 'Clear to rain, fog rolling in and more', icon: 'swap-horizontal', motion: 'sway' },
 ];
 
+const ABOUT_POINTS: { icon: GlyphName; motion: Motion; title: string; text: string }[] = [
+  { icon: 'map-marker-radius-outline', motion: 'float', title: 'Weather for exactly where you are', text: 'Down to your neighbourhood, town or village.' },
+  { icon: 'update', motion: 'spin', title: 'Always up to date', text: 'Conditions refresh every 10 minutes while the app is open.' },
+  { icon: 'bell-ring-outline', motion: 'ring', title: 'Alerts only when it matters', text: 'Rain, storms, heat and strong wind. No noise in between.' },
+  { icon: 'shield-check-outline', motion: 'pulse', title: 'No account needed', text: 'Your location is used only for your weather and alerts.' },
+];
+
 const MORNING_HOURS = [6, 7, 8, 9];
 const EVENING_HOURS = [18, 19, 20, 21];
 const hourLabel = (h: number) => `${h % 12 || 12}:00 ${h >= 12 ? 'PM' : 'AM'}`;
@@ -218,11 +225,20 @@ export const SettingsScreen: React.FC<Props> = ({ onOpenNotifications }) => {
 
         <DeveloperCard delay={300} />
 
-        <Card title="About" icon="information-outline" iconMotion="breathe" delay={360}>
-          <Text style={styles.about}>WeatherNow · Version 1.0.0</Text>
-          <Text style={styles.hint}>
-            Forecasts from OpenWeather and Open-Meteo, live radar from RainViewer, place names from OpenStreetMap / GeoNames. Conditions refresh every 10 minutes while the app is open.
-          </Text>
+        <Card title="About WeatherNow" icon="information-outline" iconMotion="breathe" delay={360}>
+          <Text style={styles.aboutLead}>Your weather, explained simply, so you always know what the day has in store.</Text>
+          {ABOUT_POINTS.map((a, i) => (
+            <View key={a.title} style={styles.aboutRow}>
+              <View style={[styles.rowIcon, { backgroundColor: `${colors.accent}1F` }]}>
+                <AnimatedGlyph name={a.icon} size={18} color={colors.accent} motion={a.motion} delay={i * 180} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>{a.title}</Text>
+                <Text style={styles.rowSub}>{a.text}</Text>
+              </View>
+            </View>
+          ))}
+          <Text style={styles.credits}>Version 1.0.0 · Weather data by OpenWeather and Open-Meteo · Radar by RainViewer</Text>
         </Card>
       </ScrollView>
     </View>
@@ -327,6 +343,26 @@ const makeStyles = ({ colors, fonts, spacing, radius }: Theme) =>
     push: {
       marginTop: spacing.md,
       marginBottom: -spacing.lg,
+    },
+    aboutLead: {
+      fontFamily: fonts.medium,
+      fontSize: 15,
+      lineHeight: 22,
+      color: colors.text,
+      marginBottom: spacing.sm,
+    },
+    aboutRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    credits: {
+      fontFamily: fonts.regular,
+      fontSize: 11.5,
+      lineHeight: 16,
+      color: colors.textMuted,
+      marginTop: spacing.md,
     },
     about: {
       fontFamily: fonts.semiBold,

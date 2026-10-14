@@ -13,10 +13,19 @@ import { TabBar, TabKey } from '../components/TabBar';
 import { SearchSheet } from '../components/SearchSheet';
 import { NotificationCenter } from '../components/notifications/NotificationCenter';
 import { AlertToast } from '../components/notifications/AlertToast';
+import { NotificationPrompt } from '../components/notifications/NotificationPrompt';
+import { useNotificationStore } from '../store/notificationStore';
+import { notificationService } from '../services/notificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 import { TodayScreen } from './TodayScreen';
 import { RadarScreen } from './RadarScreen';
 import { PlacesScreen } from './PlacesScreen';
 import { SettingsScreen } from './SettingsScreen';
+
+const PROMPT_KEY = '@weathernow_notification_prompt_v1';
+const ACTIVE_ALERT_MS = 6 * 60 * 60 * 1000;
+let introShown = false;
 
 /**
  * Cross-fades a tab in with a small lift. Visited tabs stay mounted (scroll position and state
@@ -62,6 +71,49 @@ export const HomeScreen: React.FC = () => {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const current = useWeatherStore((s) => s.current);
   const placeName = useWeatherStore((s) => s.place?.name);
+  const weatherReady = useWeatherStore((s) => s.status === 'ready');
+  const permission = useNotificationStore((s) => s.permission);
+  const [promptOpen, setPromptOpen] = useState(false);
+
+  // First run only: once the weather is on screen, explain notifications, then ask.
+  useEffect(() => {
+    if (!weatherReady || permission !== 'default' || notificationService.support() === 'none') return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    AsyncStorage.getItem(PROMPT_KEY).then((seen) => {
+      if (!seen) timer = setTimeout(() => setPromptOpen(true), 2500);
+    });
+    return () => clearTimeout(timer);
+  }, [weatherReady, permission]);
+
+  // First impression: if a real weather warning is active for this place, let it drop in once
+  // per app session — after the hero settles, and never for routine messages.
+  useEffect(() => {
+    if (!weatherReady || introShown) return;
+    const t = setTimeout(() => {
+      introShown = true;
+      const { items, toast, showToast } = useNotificationStore.getState();
+      const city = useWeatherStore.getState().place?.name;
+      if (toast || !city) return;
+      const active = items.find(
+        (n) => n.city === city && n.severity !== 'info' && n.kind !== 'brief' && n.kind !== 'evening' && Date.now() - n.createdAt < ACTIVE_ALERT_MS
+      );
+      if (active) showToast(active);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [weatherReady]);
+
+  // Back from the phone's Settings: pick up a newly allowed (or revoked) permission.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') useNotificationStore.getState().refreshPermission();
+    });
+    return () => sub.remove();
+  }, []);
+
+  const closePrompt = () => {
+    setPromptOpen(false);
+    AsyncStorage.setItem(PROMPT_KEY, '1').catch(() => {});
+  };
 
   const openSearch = () => setSearchOpen(true);
   const openAlerts = () => setAlertsOpen(true);
@@ -103,6 +155,7 @@ export const HomeScreen: React.FC = () => {
 
       <SearchSheet visible={searchOpen} onClose={() => setSearchOpen(false)} onPicked={() => selectTab('today')} />
       <NotificationCenter visible={alertsOpen} onClose={() => setAlertsOpen(false)} placeName={placeName} />
+      <NotificationPrompt visible={promptOpen} onClose={closePrompt} />
     </View>
   );
 };

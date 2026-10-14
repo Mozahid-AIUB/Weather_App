@@ -29,6 +29,7 @@ interface NotificationState {
   markAllRead: () => void;
   clear: () => void;
   dismissToast: () => void;
+  showToast: (item: AppNotification) => void;
   refreshPermission: () => Promise<void>;
   requestPermission: () => Promise<PermissionState>;
 }
@@ -130,6 +131,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     },
 
     dismissToast: () => set({ toast: null }),
+
+    showToast: (item) => set({ toast: item }),
 
     refreshPermission: async () => set({ permission: await notificationService.getPermission() }),
 

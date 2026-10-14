@@ -93,7 +93,8 @@ export const useLiveWeather = () => {
       const last = await loadLastPlace();
       // Show the last place instantly; a GPS fix replaces it when it arrives.
       if (last) weather.loadPlace(last, { isGps: last.isGps });
-      const located = await weather.locate();
+      // The system location prompt appears only on the very first launch.
+      const located = (await weather.locate('first-time')) === 'ok';
       if (!located && !last) await weather.loadPlace(defaultPlace());
     })();
 

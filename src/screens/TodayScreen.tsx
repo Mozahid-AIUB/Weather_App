@@ -129,7 +129,7 @@ export const TodayScreen: React.FC<Props> = ({ onOpenSearch, onOpenNotifications
       <View style={styles.flex}>
         <ScreenHeader title={title} subtitle={status === 'error' ? undefined : <LoadingLine />} onTitlePress={onOpenSearch} onBellPress={onOpenNotifications} />
         {status === 'error' ? (
-          <ErrorState message={error || 'Something went wrong.'} onRetry={() => (place ? refresh() : locate())} onSearch={onOpenSearch} />
+          <ErrorState message={error || 'Something went wrong.'} onRetry={() => (place ? refresh() : locate('always'))} onSearch={onOpenSearch} />
         ) : (
           <TodaySkeleton />
         )}

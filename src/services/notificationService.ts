@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import Constants from 'expo-constants';
 
@@ -34,7 +34,8 @@ const CHANNEL_ID = 'weather-alerts';
 export type DailyId = 'morning-brief' | 'evening-brief';
 
 export type DeviceSupport = 'native' | 'web' | 'none';
-export type PermissionState = 'granted' | 'denied' | 'default' | 'unsupported';
+/** 'default' = can still ask; 'blocked' = the phone won't show the prompt again (send to Settings). */
+export type PermissionState = 'granted' | 'default' | 'blocked' | 'unsupported';
 
 const webNotification = (): typeof window.Notification | null =>
   Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window ? window.Notification : null;
@@ -59,11 +60,13 @@ export const notificationService = {
 
   getPermission: async (): Promise<PermissionState> => {
     const web = webNotification();
-    if (web) return web.permission as PermissionState;
+    if (web) return web.permission === 'granted' ? 'granted' : web.permission === 'denied' ? 'blocked' : 'default';
     if (!Notifications) return 'unsupported';
     try {
-      const { status } = await Notifications.getPermissionsAsync();
-      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'default';
+      // Android 13+ reports "denied" before the user was ever asked, so canAskAgain decides.
+      const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (status === 'granted') return 'granted';
+      return canAskAgain ? 'default' : 'blocked';
     } catch {
       return 'unsupported';
     }
@@ -73,19 +76,26 @@ export const notificationService = {
     const web = webNotification();
     if (web) {
       try {
-        return (await web.requestPermission()) as PermissionState;
+        const result = await web.requestPermission();
+        return result === 'granted' ? 'granted' : result === 'denied' ? 'blocked' : 'default';
       } catch {
-        return 'denied';
+        return 'blocked';
       }
     }
     if (!Notifications) return 'unsupported';
     try {
       await ensureChannel();
-      const { status } = await Notifications.requestPermissionsAsync();
-      return status === 'granted' ? 'granted' : 'denied';
+      const { status, canAskAgain } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') return 'granted';
+      return canAskAgain ? 'default' : 'blocked';
     } catch {
-      return 'denied';
+      return 'blocked';
     }
+  },
+
+  /** Opens this app's notification settings on the phone. */
+  openSettings: () => {
+    if (Platform.OS !== 'web') Linking.openSettings().catch(() => {});
   },
 
   /** Shows a system notification right away (no-op without permission). */

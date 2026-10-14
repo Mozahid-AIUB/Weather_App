@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CurrentWeather, DailyItem, ForecastItem, HourlyItem, Place } from '../types/weather';
 import { weatherService } from '../services/weatherService';
-import { locationService } from '../services/locationService';
+import { LocateResult, locationService } from '../services/locationService';
 import { backendService } from '../services/backendService';
 import { cityDateKey, cityHour, countryName } from '../utils/format';
 
@@ -27,7 +27,8 @@ interface WeatherState {
 
   /** Load weather for a place. Pass `isGps` for the device location (name is reverse-geocoded). */
   loadPlace: (place: Place, opts?: { isGps?: boolean; save?: boolean }) => Promise<boolean>;
-  locate: () => Promise<boolean>;
+  /** Use the device location. Returns why it failed so the UI can offer Settings when blocked. */
+  locate: (ask?: 'first-time' | 'always') => Promise<LocateResult>;
   refresh: (opts?: { silent?: boolean }) => Promise<void>;
   hydratePlaces: () => Promise<void>;
   savePlace: (place: Place) => void;
@@ -163,10 +164,11 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
     }
   },
 
-  locate: async () => {
-    const coords = await locationService.getCurrentCoords();
-    if (!coords) return false;
-    return get().loadPlace({ name: '', country: '', lat: coords.lat, lon: coords.lon }, { isGps: true });
+  locate: async (ask = 'always') => {
+    const { coords, result } = await locationService.getCurrentCoords(ask);
+    if (!coords) return result;
+    const ok = await get().loadPlace({ name: '', country: '', lat: coords.lat, lon: coords.lon }, { isGps: true });
+    return ok ? 'ok' : 'error';
   },
 
   refresh: async ({ silent = false } = {}) => {

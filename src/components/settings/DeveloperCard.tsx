@@ -26,16 +26,18 @@ export const DeveloperCard: React.FC<{ delay?: number }> = ({ delay = 0 }) => {
 
       <PressableScale
         onPress={() => open(`mailto:${DEVELOPER.email}?subject=${encodeURIComponent('WeatherNow feedback')}`)}
-        style={[styles.primary, { backgroundColor: colors.accent }]}
+        style={[styles.primary, { backgroundColor: colors.accentSoft, borderColor: `${colors.accent}40` }]}
         accessibilityRole="link"
         accessibilityLabel="Contact us by email"
       >
-        <MaterialCommunityIcons name="email-outline" size={20} color={colors.onAccent} />
-        <View style={styles.flex}>
-          <Text style={[styles.primaryTitle, { color: colors.onAccent }]}>Contact us</Text>
-          <Text style={[styles.primarySub, { color: colors.onAccent }]}>Feedback, support or business inquiries</Text>
+        <View style={[styles.mailIcon, { backgroundColor: colors.accent }]}>
+          <MaterialCommunityIcons name="email-outline" size={18} color={colors.onAccent} />
         </View>
-        <MaterialCommunityIcons name="arrow-top-right" size={18} color={colors.onAccent} />
+        <View style={styles.flex}>
+          <Text style={[styles.primaryTitle, { color: colors.text }]}>Contact us</Text>
+          <Text style={[styles.primarySub, { color: colors.textSecondary }]}>Feedback, support or business inquiries</Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={22} color={colors.accent} />
       </PressableScale>
     </Card>
   );
@@ -60,7 +62,15 @@ const makeStyles = ({ colors, fonts, spacing, radius }: Theme) =>
       color: colors.textSecondary,
       marginTop: 1,
     },
+    mailIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     primary: {
+      borderWidth: 1,
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.md,
