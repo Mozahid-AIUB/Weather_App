@@ -23,7 +23,7 @@ export const RadarScreen: React.FC<Props> = ({ onOpenNotifications }) => {
 
   return (
     <View style={styles.flex}>
-      <ScreenHeader title="Radar" subtitle={`Live precipitation around ${place.name}`} onBellPress={onOpenNotifications} />
+      <ScreenHeader title="Radar" subtitle={`Live weather maps around ${place.name}`} onBellPress={onOpenNotifications} />
       <Animated.View entering={FadeInDown.duration(500).springify().damping(18)} style={styles.mapCard}>
         <WeatherRadarMap
           cityName={place.name}

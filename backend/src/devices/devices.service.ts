@@ -21,6 +21,23 @@ export class DevicesService {
     return { success: true };
   }
 
+  /** Admin overview: registered phones without exposing push tokens in full. */
+  async list() {
+    const all = await this.repo.find({ order: { updatedAt: 'DESC' } });
+    return all.map((d) => ({
+      place: d.place,
+      unit: d.unit,
+      morning: d.morningBrief ? d.briefHour : null,
+      evening: d.eveningBrief ? d.eveningHour : null,
+      tzOffset: d.tzOffset,
+      token: `${d.token.slice(0, 22)}…`,
+      lastBrief: d.lastBriefDate,
+      lastEvening: d.lastEveningDate,
+      sentAlerts: d.sentIds.length,
+      updatedAt: d.updatedAt,
+    }));
+  }
+
   async unregister(token: string): Promise<{ success: boolean }> {
     await this.repo.delete({ token });
     return { success: true };

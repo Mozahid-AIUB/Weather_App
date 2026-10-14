@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { FONTS } from '../theme/tokens';
+import { OPENWEATHER_API_KEY } from '../constants';
 
 const LOADING_ACCENT = '#9DB4FF';
 
@@ -445,11 +446,11 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
   <!-- Top Intensity Bar (Matches Screenshot) -->
   <div class="top-radar-bar">
     <div class="radar-time-title">
-      RADAR &bull; <span id="top-timestamp-display">LOADING RADAR...</span>
+      <span id="layer-title">RADAR</span> &bull; <span id="top-timestamp-display">LOADING RADAR...</span>
     </div>
     <div class="intensity-bar-container">
-      <div class="intensity-gradient"></div>
-      <div class="intensity-labels">
+      <div class="intensity-gradient" id="legend-gradient"></div>
+      <div class="intensity-labels" id="legend-labels">
         <span>Rain</span>
         <span class="mixed">Mixed</span>
         <span class="snow">Snow</span>
@@ -460,16 +461,16 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
   <!-- Layer Menu Drawer -->
   <div class="layer-menu" id="layerMenu">
     <button class="layer-menu-btn selected" id="btn-layer-radar" onclick="setLayer('radar')">
-      🌧️ Doppler Radar
+      🌧️ Radar
     </button>
     <button class="layer-menu-btn" id="btn-layer-satellite" onclick="setLayer('satellite')">
-      🛰️ Satellite Clouds
+      🛰️ Satellite &amp; clouds
     </button>
     <button class="layer-menu-btn" id="btn-layer-temp" onclick="setLayer('temp')">
-      🌡️ Temperature Heat
+      🌡️ Temperature
     </button>
     <button class="layer-menu-btn" id="btn-layer-wind" onclick="setLayer('wind')">
-      💨 Wind Currents
+      💨 Wind speed
     </button>
   </div>
 
@@ -512,7 +513,7 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
   </div>
 
   <!-- Bottom Timeline Scrubber (Matches Screenshot) -->
-  <div class="timeline-card">
+  <div class="timeline-card" id="timelineCard">
     <div class="timeline-header">
       <span class="timeline-timestamp" id="scrubber-timestamp">LOADING RADAR...</span>
       <span class="timeline-live-tag" id="live-tag">LIVE</span>
@@ -557,6 +558,31 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
     var isPlaying = true;
     var playInterval = null;
     var activeLayerType = 'radar';
+    var owmKey = "${OPENWEATHER_API_KEY}";
+    var unitSystem = "${unit}";
+    var baseGray, baseLabels, baseImagery, overlay = null;
+    var radarGradient = '';
+
+    // Legends follow OpenWeather's tile palettes so colours mean what they show.
+    var LEGENDS = {
+      radar: { title: 'RADAR', labels: ['Rain', 'Mixed', 'Snow'] },
+      satellite: {
+        title: 'SATELLITE',
+        gradient: 'linear-gradient(to right, rgba(255,255,255,0.08), rgba(240,244,250,0.6), #FFFFFF)',
+        labels: ['Clear', 'Partly cloudy', 'Overcast']
+      },
+      temp: {
+        title: 'TEMPERATURE',
+        gradient: 'linear-gradient(to right, #821692, #8257DB, #208CEC, #20C4E8, #23DDDD, #C2FF28, #FFF028, #FFC228, #FC8014)',
+        labels: unitSystem === 'imperial' ? ['-40°F', '32°F', '86°F+'] : ['-40°C', '0°C', '30°C+']
+      },
+      wind: {
+        title: 'WIND',
+        gradient: 'linear-gradient(to right, rgba(238,206,204,0.35), #EECECC, #B364BC, #744CAC, #4600AF)',
+        labels: unitSystem === 'imperial' ? ['0 mph', '35 mph', '110+ mph'] : ['0 km/h', '55 km/h', '180+ km/h']
+      }
+    };
+    var OWM_LAYER = { satellite: 'clouds_new', temp: 'temp_new', wind: 'wind_new' };
     var rainViewerHost = 'https://tilecache.rainviewer.com';
 
     // Format UNIX timestamp to MM/DD/YY | HH:MM AM/PM
@@ -607,14 +633,27 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
       }).addTo(map);
 
       // Esri light-grey canvas + reference labels (no API key needed; CARTO now requires one)
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      baseGray = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 16,
-        attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+        attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors &middot; Weather &copy; OpenWeather, RainViewer'
       }).addTo(map);
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+      baseLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 16,
         zIndex: 200
       }).addTo(map);
+      // Real satellite imagery, used under the live cloud layer.
+      baseImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 17,
+        attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; Clouds &copy; OpenWeather'
+      });
+      radarGradient = document.getElementById('legend-gradient').style.background;
+      if (!owmKey) {
+        ['satellite', 'temp', 'wind'].forEach(function(t) {
+          var b = document.getElementById('btn-layer-' + t);
+          b.disabled = true;
+          b.style.opacity = '0.45';
+        });
+      }
 
       // Custom Blue Doppler Radar Location Marker
       createMarker();
@@ -697,7 +736,10 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
           tileSize: 256,
           opacity: 0,
           zIndex: 100,
-          maxZoom: 18
+          maxZoom: 18,
+          // RainViewer's free tiles stop at zoom 7 (beyond that they return a "Zoom Level Not
+          // Supported" image), so Leaflet scales the zoom-7 tiles up instead.
+          maxNativeZoom: 7
         });
         layer.addTo(map);
         radarLayers.push(layer);
@@ -797,6 +839,7 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
     }
 
     function setLayer(layerType) {
+      if (layerType !== 'radar' && !owmKey) return;
       activeLayerType = layerType;
       document.getElementById('layerMenu').classList.remove('active');
       var btns = document.querySelectorAll('.layer-menu-btn');
@@ -804,26 +847,52 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
       var activeBtn = document.getElementById('btn-layer-' + layerType);
       if (activeBtn) activeBtn.classList.add('selected');
 
-      // Update tile layers if satellite or radar
-      for (var i = 0; i < radarLayers.length; i++) {
-        map.removeLayer(radarLayers[i]);
+      // Base map: satellite imagery for the cloud view, light canvas for everything else.
+      if (layerType === 'satellite') {
+        if (map.hasLayer(baseGray)) map.removeLayer(baseGray);
+        if (!map.hasLayer(baseImagery)) baseImagery.addTo(map);
+      } else {
+        if (map.hasLayer(baseImagery)) map.removeLayer(baseImagery);
+        if (!map.hasLayer(baseGray)) baseGray.addTo(map);
       }
-      radarLayers = [];
 
-      for (var j = 0; j < radarFrames.length; j++) {
-        var frame = radarFrames[j];
-        var scheme = (layerType === 'radar' ? '4' : '2');
-        var tileUrl = rainViewerHost + frame.path + '/256/{z}/{x}/{y}/' + scheme + '/1_1.png';
-        var layer = L.tileLayer(tileUrl, {
-          tileSize: 256,
-          opacity: 0,
-          zIndex: 100,
-          maxZoom: 18
-        });
-        layer.addTo(map);
-        radarLayers.push(layer);
+      // Live OpenWeather overlay for clouds / temperature / wind.
+      if (overlay) {
+        map.removeLayer(overlay);
+        overlay = null;
       }
-      showFrame(currentFrameIndex);
+      var owmLayer = OWM_LAYER[layerType];
+      if (owmLayer) {
+        overlay = L.tileLayer('https://tile.openweathermap.org/map/' + owmLayer + '/{z}/{x}/{y}.png?appid=' + owmKey, {
+          opacity: layerType === 'satellite' ? 0.85 : 0.8,
+          zIndex: 150,
+          maxZoom: 18
+        }).addTo(map);
+      }
+
+      // Radar frames and the timeline only belong to the radar view.
+      if (layerType === 'radar') {
+        if (radarFrames.length) {
+          showFrame(currentFrameIndex);
+          startPlay();
+        }
+      } else {
+        pausePlay();
+        for (var i = 0; i < radarLayers.length; i++) radarLayers[i].setOpacity(0);
+      }
+      document.getElementById('timelineCard').style.display = layerType === 'radar' ? '' : 'none';
+      applyLegend(layerType);
+    }
+
+    function applyLegend(layerType) {
+      var lg = LEGENDS[layerType];
+      document.getElementById('layer-title').innerText = lg.title;
+      document.getElementById('legend-gradient').style.background = lg.gradient || radarGradient;
+      var labels = document.getElementById('legend-labels').children;
+      for (var i = 0; i < 3; i++) labels[i].innerText = lg.labels[i];
+      labels[1].className = layerType === 'radar' ? 'mixed' : '';
+      labels[2].className = layerType === 'radar' ? 'snow' : '';
+      if (layerType !== 'radar') document.getElementById('top-timestamp-display').innerText = 'LIVE NOW';
     }
 
     // Recenter from external React Native call
@@ -850,7 +919,7 @@ export const WeatherRadarMap: React.FC<WeatherRadarMapProps> = ({
 </body>
 </html>
     `;
-  }, [lat, lon, cityName]);
+  }, [lat, lon, cityName, unit]);
 
   return (
     <View style={styles.container}>

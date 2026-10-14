@@ -87,6 +87,24 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Admin check: sends a test notification to every registered phone and reports the result. */
+  async sendTest(title: string, body: string) {
+    const all = await this.devices.find();
+    if (!all.length) return { devices: 0, ok: 0, errors: [] as string[] };
+    const res = await fetch(EXPO_PUSH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(all.map((d) => ({ to: d.token, title, body, sound: 'default', channelId: 'weather-alerts', priority: 'high' }))),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const tickets: { status: string; message?: string; details?: { error?: string } }[] = (await res.json()).data ?? [];
+    return {
+      devices: all.length,
+      ok: tickets.filter((t) => t.status === 'ok').length,
+      errors: tickets.filter((t) => t.status !== 'ok').map((t) => t.details?.error || t.message || 'unknown'),
+    };
+  }
+
   private async fetchForecast(lat: number, lon: number): Promise<Forecast | null> {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
@@ -333,7 +351,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
               body: alert.body,
               sound: 'default',
               channelId: 'weather-alerts',
-              priority: alert.severity === 'severe' ? 'high' : 'default',
+              // Every push here is user-visible; high priority avoids Android Doze delays.
+              priority: 'high',
               data: { id: alert.id, kind: alert.kind, severity: alert.severity, city: device.place },
             })),
           ),
