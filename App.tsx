@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   useFonts,
   Outfit_300Light,
@@ -14,6 +14,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider } from './src/theme/ThemeProvider';
 import { useSettingsStore } from './src/store/settingsStore';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { AnimatedSplash } from './src/components/AnimatedSplash';
+import { useWeatherStore } from './src/store/weatherStore';
+import { useUiStore } from './src/store/uiStore';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,9 +38,13 @@ export default function App() {
   }, []);
 
   const ready = fontsLoaded && settingsReady;
+  // The animated splash (same colour as the native one) takes over as soon as we can draw.
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
   }, [ready]);
+
+  const [splashDone, setSplashDone] = useState(false);
+  const weatherReady = useWeatherStore((s) => s.status === 'ready' || s.status === 'error');
 
   if (!ready) return null;
 
@@ -46,6 +53,16 @@ export default function App() {
       <ThemeProvider>
         <HomeScreen />
       </ThemeProvider>
+      {/* The app loads underneath while the splash plays, then it lifts away. */}
+      {!splashDone && (
+        <AnimatedSplash
+          ready={weatherReady}
+          onDone={() => {
+            setSplashDone(true);
+            useUiStore.getState().setRevealed();
+          }}
+        />
+      )}
     </SafeAreaProvider>
   );
 }

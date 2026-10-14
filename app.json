@@ -7,9 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A0F1E"
+      "backgroundColor": "#0A1124"
     },
     "ios": {
       "supportsTablet": false,
@@ -43,7 +41,12 @@
       "expo-location",
       "expo-font",
       "expo-notifications",
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A1124"
+        }
+      ]
     ],
     "extra": {
       "eas": {

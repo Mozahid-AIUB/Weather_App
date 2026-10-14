@@ -15,6 +15,7 @@ import { NotificationCenter } from '../components/notifications/NotificationCent
 import { AlertToast } from '../components/notifications/AlertToast';
 import { NotificationPrompt } from '../components/notifications/NotificationPrompt';
 import { useNotificationStore } from '../store/notificationStore';
+import { useUiStore } from '../store/uiStore';
 import { notificationService } from '../services/notificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
@@ -72,23 +73,24 @@ export const HomeScreen: React.FC = () => {
   const current = useWeatherStore((s) => s.current);
   const placeName = useWeatherStore((s) => s.place?.name);
   const weatherReady = useWeatherStore((s) => s.status === 'ready');
+  const revealed = useUiStore((s) => s.revealed);
   const permission = useNotificationStore((s) => s.permission);
   const [promptOpen, setPromptOpen] = useState(false);
 
   // First run only: once the weather is on screen, explain notifications, then ask.
   useEffect(() => {
-    if (!weatherReady || permission !== 'default' || notificationService.support() === 'none') return;
+    if (!revealed || !weatherReady || permission !== 'default' || notificationService.support() === 'none') return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     AsyncStorage.getItem(PROMPT_KEY).then((seen) => {
-      if (!seen) timer = setTimeout(() => setPromptOpen(true), 2500);
+      if (!seen) timer = setTimeout(() => setPromptOpen(true), 1500);
     });
     return () => clearTimeout(timer);
-  }, [weatherReady, permission]);
+  }, [revealed, weatherReady, permission]);
 
   // First impression: if a real weather warning is active for this place, let it drop in once
   // per app session — after the hero settles, and never for routine messages.
   useEffect(() => {
-    if (!weatherReady || introShown) return;
+    if (!revealed || !weatherReady || introShown) return;
     const t = setTimeout(() => {
       introShown = true;
       const { items, toast, showToast } = useNotificationStore.getState();
@@ -98,9 +100,9 @@ export const HomeScreen: React.FC = () => {
         (n) => n.city === city && n.severity !== 'info' && n.kind !== 'brief' && n.kind !== 'evening' && Date.now() - n.createdAt < ACTIVE_ALERT_MS
       );
       if (active) showToast(active);
-    }, 1200);
+    }, 600);
     return () => clearTimeout(t);
-  }, [weatherReady]);
+  }, [revealed, weatherReady]);
 
   // Back from the phone's Settings: pick up a newly allowed (or revoked) permission.
   useEffect(() => {

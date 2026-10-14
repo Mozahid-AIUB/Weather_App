@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { Theme, useStyles, useTheme } from '../../theme/ThemeProvider';
 import { useNotificationStore } from '../../store/notificationStore';
+import { useUiStore } from '../../store/uiStore';
 import { PressableScale } from '../ui/PressableScale';
 import { AnimatedGlyph } from '../ui/AnimatedGlyph';
 import { ALERT_ICON, severityColor } from './alertVisuals';
@@ -19,15 +20,17 @@ export const AlertToast: React.FC<{ onOpen: () => void }> = ({ onOpen }) => {
   const insets = useSafeAreaInsets();
   const toast = useNotificationStore((s) => s.toast);
   const dismiss = useNotificationStore((s) => s.dismissToast);
+  // Toasts wait until the launch splash has lifted, so none is missed behind it.
+  const revealed = useUiStore((s) => s.revealed);
 
   useEffect(() => {
-    if (!toast) return;
+    if (!toast || !revealed) return;
     if (toast.severity === 'severe') haptic.warning();
     const t = setTimeout(dismiss, VISIBLE_MS);
     return () => clearTimeout(t);
-  }, [toast?.id]);
+  }, [toast?.id, revealed]);
 
-  if (!toast) return null;
+  if (!toast || !revealed) return null;
   const visual = ALERT_ICON[toast.kind];
   const tint = severityColor(toast.severity, toast.kind, colors);
 
