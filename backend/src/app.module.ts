@@ -5,6 +5,7 @@ import { SearchHistoryModule } from './search-history/search-history.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthModule } from './health/health.module';
 import { DevicesModule } from './devices/devices.module';
+import { LegalModule } from './legal/legal.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DevicesModule } from './devices/devices.module';
     AnalyticsModule,
     HealthModule,
     DevicesModule,
+    LegalModule,
   ],
 })
 export class AppModule {}

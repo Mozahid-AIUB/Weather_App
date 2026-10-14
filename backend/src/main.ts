@@ -7,7 +7,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // ── Global prefix ──────────────────────────────────────
-  app.setGlobalPrefix('api');
+  // Public legal pages (e.g. /privacy) live at the root for Google Play.
+  app.setGlobalPrefix('api', { exclude: ['privacy'] });
 
   // ── CORS ───────────────────────────────────────────────
   app.enableCors({
