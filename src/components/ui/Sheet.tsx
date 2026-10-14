@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Theme, useStyles, useTheme } from '../../theme/ThemeProvider';
 import { PressableScale } from './PressableScale';
+import { applyStatusBar } from '../../utils/statusBar';
 
 interface Props {
   visible: boolean;
@@ -23,7 +24,7 @@ const CLOSE_MS = 220;
 /** Bottom sheet with a spring-in panel and fading backdrop; animates out before unmounting. */
 export const Sheet: React.FC<Props> = ({ visible, onClose, title, subtitle, headerRight, maxHeight = 0.88, fullHeight, children }) => {
   const styles = useStyles(makeStyles);
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
@@ -40,7 +41,11 @@ export const Sheet: React.FC<Props> = ({ visible, onClose, title, subtitle, head
     } else if (mounted) {
       fade.value = withTiming(0, { duration: CLOSE_MS });
       y.value = withTiming(height, { duration: CLOSE_MS, easing: Easing.in(Easing.cubic) });
-      const t = setTimeout(() => setMounted(false), CLOSE_MS);
+      const t = setTimeout(() => {
+        setMounted(false);
+        // Android resets status bar icons to light when the Modal window closes.
+        applyStatusBar(mode);
+      }, CLOSE_MS);
       return () => clearTimeout(t);
     }
   }, [visible]);

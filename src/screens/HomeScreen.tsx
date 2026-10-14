@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { useWeatherStore } from '../store/weatherStore';
 import { useLiveWeather } from '../hooks/useLiveWeather';
 import { usePushRegistration } from '../hooks/usePushRegistration';
 import { iconGroup } from '../utils/weather';
+import { applyStatusBar } from '../utils/statusBar';
 import { SkyBackground } from '../components/sky/SkyBackground';
 import { TabBar, TabKey } from '../components/TabBar';
 import { SearchSheet } from '../components/SearchSheet';
@@ -62,6 +63,8 @@ export const HomeScreen: React.FC = () => {
   useLiveWeather();
   usePushRegistration();
   const { mode } = useTheme();
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const [tab, setTab] = useState<TabKey>('today');
   const [visited, setVisited] = useState<Set<TabKey>>(() => new Set<TabKey>(['today']));
   const selectTab = (next: TabKey) => {
@@ -104,10 +107,18 @@ export const HomeScreen: React.FC = () => {
     return () => clearTimeout(t);
   }, [revealed, weatherReady]);
 
-  // Back from the phone's Settings: pick up a newly allowed (or revoked) permission.
+  // Keep status bar icons readable whenever the theme or splash state changes.
+  useEffect(() => {
+    applyStatusBar(mode, !revealed);
+  }, [mode, revealed]);
+
+  // Back from the phone's Settings: pick up a newly allowed (or revoked) permission, and
+  // restore the status bar colour Android may have reset.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') useNotificationStore.getState().refreshPermission();
+      if (state !== 'active') return;
+      useNotificationStore.getState().refreshPermission();
+      applyStatusBar(modeRef.current, !useUiStore.getState().revealed);
     });
     return () => sub.remove();
   }, []);
@@ -123,7 +134,8 @@ export const HomeScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       <SkyBackground condition={iconGroup(current?.weather[0]?.icon)} subdued={tab !== 'today'} />
-      <StatusBar style={mode === 'day' ? 'dark' : 'light'} />
+      {/* Light icons over the dark splash, then matched to the theme. */}
+      <StatusBar style={!revealed || mode === 'night' ? 'light' : 'dark'} />
 
       <ThemeFade style={styles.root}>
         <SafeAreaView edges={['top', 'left', 'right']} style={styles.root}>
