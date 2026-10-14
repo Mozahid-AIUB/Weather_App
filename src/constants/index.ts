@@ -124,3 +124,5 @@ export const DEVELOPER = {
   role: 'Software, App & AI Solutions',
   email: 'mozahidul.islam.ai@gmail.com',
 };
+
+export const PRIVACY_URL = 'https://weather-api.194.233.85.160.sslip.io/privacy';

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Theme, useStyles, useTheme } from '../theme/ThemeProvider';
 import { AlertPrefs, Appearance, Unit, useSettingsStore } from '../store/settingsStore';
 import { useWeatherStore } from '../store/weatherStore';
@@ -15,6 +15,7 @@ import { NameCard } from '../components/settings/NameCard';
 import { DeveloperCard } from '../components/settings/DeveloperCard';
 import { notificationService } from '../services/notificationService';
 import { TAB_BAR_SPACE } from '../components/TabBar';
+import { PRIVACY_URL } from '../constants';
 import { cityDateKey } from '../utils/format';
 import { haptic } from '../utils/haptics';
 
@@ -232,7 +233,12 @@ export const SettingsScreen: React.FC<Props> = ({ onOpenNotifications }) => {
               <Text style={styles.aboutText}>{a.title}</Text>
             </View>
           ))}
-          <Text style={styles.version}>Version 1.0.0</Text>
+          <View style={styles.aboutFooter}>
+            <Text style={styles.version}>Version 1.0.0</Text>
+            <PressableScale onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})} accessibilityRole="link">
+              <Text style={[styles.version, { color: colors.accent }]}>Privacy policy</Text>
+            </PressableScale>
+          </View>
         </Card>
       </ScrollView>
     </View>
@@ -348,6 +354,11 @@ const makeStyles = ({ colors, fonts, spacing, radius }: Theme) =>
       fontFamily: fonts.medium,
       fontSize: 14,
       color: colors.text,
+    },
+    aboutFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
     },
     version: {
       fontFamily: fonts.regular,
