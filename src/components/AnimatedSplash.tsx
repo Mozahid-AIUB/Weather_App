@@ -120,6 +120,7 @@ export const AnimatedSplash: React.FC<Props> = ({ ready, onDone }) => {
   const name = greetingName(userName);
 
   const veil = useSharedValue(1);
+  const logo = useSharedValue(1);
   const rise = useSharedValue(70);
   const pop = useSharedValue(0.4);
   const spin = useSharedValue(0);
@@ -149,6 +150,8 @@ export const AnimatedSplash: React.FC<Props> = ({ ready, onDone }) => {
   useEffect(() => {
     const ease = Easing.out(Easing.cubic);
     veil.value = withTiming(0, { duration: 600 });
+    // Hand-off: the native splash logo lingers a beat, then gives way to the animated scene.
+    logo.value = withDelay(150, withTiming(0, { duration: 450, easing: Easing.in(Easing.quad) }));
     rise.value = withTiming(0, { duration: 1300, easing: ease });
     pop.value = withSpring(1, { damping: 9, stiffness: 90 });
     spin.value = withRepeat(withTiming(360, { duration: 14000, easing: Easing.linear }), -1, false);
@@ -161,7 +164,7 @@ export const AnimatedSplash: React.FC<Props> = ({ ready, onDone }) => {
     return () => {
       clearTimeout(min);
       clearTimeout(max);
-      [veil, rise, pop, spin, glow, cloudX, cloudO, exit].forEach(cancelAnimation);
+      [veil, logo, rise, pop, spin, glow, cloudX, cloudO, exit].forEach(cancelAnimation);
     };
   }, []);
 
@@ -175,6 +178,7 @@ export const AnimatedSplash: React.FC<Props> = ({ ready, onDone }) => {
 
   const root = useAnimatedStyle(() => ({ opacity: 1 - exit.value, transform: [{ scale: 1 + exit.value * 0.08 }] }));
   const veilStyle = useAnimatedStyle(() => ({ opacity: veil.value }));
+  const logoStyle = useAnimatedStyle(() => ({ opacity: logo.value, transform: [{ scale: 0.9 + logo.value * 0.1 }] }));
   const celestial = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value }, { scale: pop.value }] }));
   const rays = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
   const halo = useAnimatedStyle(() => ({ opacity: 0.6 + (glow.value - 1) * 2.2, transform: [{ translateY: rise.value }, { scale: glow.value }] }));
@@ -185,6 +189,10 @@ export const AnimatedSplash: React.FC<Props> = ({ ready, onDone }) => {
       <LinearGradient colors={scene.sky} locations={[0, 0.45, 0.8, 1]} style={StyleSheet.absoluteFill} />
       {/* Starts as the native splash colour, then the time-of-day sky fades in beneath. */}
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_BG }, veilStyle]} />
+      {/* Same image and size as the native splash, so the switch is seamless. */}
+      <View style={styles.logoWrap}>
+        <Animated.Image source={require('../../assets/splash-icon.png')} style={[styles.logo, logoStyle]} />
+      </View>
 
       {stars.map((s, i) => (
         <Star key={`s${i}`} {...s} />
@@ -241,6 +249,20 @@ const styles = StyleSheet.create({
   root: {
     zIndex: 2000,
     backgroundColor: SPLASH_BG,
+  },
+  logoWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: 200,
+    height: 200,
   },
   center: {
     flex: 1,
