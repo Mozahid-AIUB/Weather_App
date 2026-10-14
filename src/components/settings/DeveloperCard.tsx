@@ -37,7 +37,7 @@ export const DeveloperCard: React.FC<{ delay?: number }> = ({ delay = 0 }) => {
         <MaterialCommunityIcons name="email-outline" size={20} color={colors.onAccent} />
         <View style={styles.flex}>
           <Text style={[styles.primaryTitle, { color: colors.onAccent }]}>Contact us</Text>
-          <Text style={[styles.primarySub, { color: colors.onAccent }]}>{DEVELOPER.email}</Text>
+          <Text style={[styles.primarySub, { color: colors.onAccent }]}>Feedback, support or business inquiries</Text>
         </View>
         <MaterialCommunityIcons name="arrow-top-right" size={18} color={colors.onAccent} />
       </PressableScale>
