@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { Theme, useStyles, useTheme } from '../../theme/ThemeProvider';
@@ -102,7 +102,14 @@ export const NotificationCenter: React.FC<Props> = ({ visible, onClose, placeNam
   const items = useNotificationStore((s) => s.items);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const clear = useNotificationStore((s) => s.clear);
+  const toast = useNotificationStore((s) => s.toast);
+  const dismissToast = useNotificationStore((s) => s.dismissToast);
   const now = useNow(30000);
+
+  // The list already shows everything, so no toast should float above the open sheet.
+  useEffect(() => {
+    if (visible && toast) dismissToast();
+  }, [visible, toast]);
 
   const close = () => {
     markAllRead();
@@ -117,7 +124,6 @@ export const NotificationCenter: React.FC<Props> = ({ visible, onClose, placeNam
       visible={visible}
       onClose={close}
       title="Notifications"
-      subtitle="Live alerts from real-time conditions"
       fullHeight
       headerRight={
         items.length ? (
