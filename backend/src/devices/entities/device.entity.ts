@@ -30,6 +30,12 @@ export class Device {
   @Column({ name: 'brief_hour', default: 7 })
   briefHour: number;
 
+  @Column({ name: 'evening_brief', default: true })
+  eveningBrief: boolean;
+
+  @Column({ name: 'evening_hour', default: 19 })
+  eveningHour: number;
+
   /** Minutes east of UTC on the phone, e.g. 360 for Dhaka. */
   @Column({ name: 'tz_offset', default: 0 })
   tzOffset: number;
@@ -44,6 +50,9 @@ export class Device {
 
   @Column({ name: 'last_brief_date', length: 10, default: '' })
   lastBriefDate: string;
+
+  @Column({ name: 'last_evening_date', length: 10, default: '' })
+  lastEveningDate: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

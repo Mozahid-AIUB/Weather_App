@@ -1,6 +1,6 @@
 import type { CurrentWeather, ForecastItem, Place } from '../types/weather';
 import type { AlertKind, Unit } from '../store/settingsStore';
-import { cityDateKey, formatHour, formatWind, toTemp, capitalize, greetingName } from '../utils/format';
+import { cityDateKey, cityHour, formatHour, formatWind, toTemp, capitalize, greetingName } from '../utils/format';
 import { conditionGroup, SkyCondition } from '../utils/weather';
 
 export type Severity = 'info' | 'warning' | 'severe';
@@ -264,4 +264,56 @@ export const buildMorningBrief = ({ place, current, forecast, unit, userName, da
   }
 
   return { title, body: [outlook[o.group], ...tips.slice(0, 2)].join('\n') };
+};
+
+// ─── Evening brief ────────────────────────────────────────────────────────────
+
+export interface EveningBriefInput {
+  place: Place;
+  forecast: ForecastItem[];
+  unit: Unit;
+  userName: string;
+  /** City-local date (YYYY-MM-DD) of tomorrow. */
+  tomorrowKey: string;
+  tz?: number;
+}
+
+/** Good-evening note: how tonight goes and what tomorrow needs (umbrella, jacket, water). */
+export const buildEveningBrief = ({ place, forecast, unit, userName, tomorrowKey, tz }: EveningBriefInput) => {
+  const o = summarizeDay(null, forecast, tomorrowKey, tz);
+  if (!o) return null;
+  const name = greetingName(userName);
+  const you = name ? `, ${name}` : '';
+  const t = (c: number) => `${toTemp(c, unit)}°`;
+
+  // Tonight = the rest of today from mid-afternoon until 6 AM tomorrow.
+  const tonight = forecast.filter((i) => {
+    const key = cityDateKey(i.dt, tz);
+    const h = cityHour(i.dt, tz);
+    return (key < tomorrowKey && h >= 15) || (key === tomorrowKey && h < 6);
+  });
+  const low = tonight.length ? Math.min(...tonight.map((i) => i.main.temp)) : o.low;
+  const tonightRain = tonight.find((i) => isRain(i.weather[0]?.id ?? 0) || isStorm(i.weather[0]?.id ?? 0) || (i.pop ?? 0) >= 0.5);
+
+  const title = pick([`Good evening${you} 🌇`, `Evening${you}! Here's tomorrow 🌙`, `Hope your day went well${you} 🌆`], tomorrowKey);
+
+  const night = tonightRain ? `Showers tonight around ${formatHour(tonightRain.dt, tz)}, down to ${t(low)}.` : `A calm night ahead, down to ${t(low)}.`;
+  const tomorrow: Record<SkyCondition, string> = {
+    clear: `Tomorrow looks bright and sunny, up to ${t(o.high)}.`,
+    partly: `Tomorrow brings sun and clouds, up to ${t(o.high)}.`,
+    cloudy: `Tomorrow stays cloudy, between ${t(o.low)} and ${t(o.high)}.`,
+    rain: `Rain is likely tomorrow${o.rainSlot ? ` around ${formatHour(o.rainSlot.dt, tz)}` : ''}, with a high of ${t(o.high)}.`,
+    storm: `Thunderstorms are possible tomorrow${o.stormSlot ? ` around ${formatHour(o.stormSlot.dt, tz)}` : ''}.`,
+    snow: `Snow is expected tomorrow, ${t(o.low)} to ${t(o.high)}.`,
+    fog: `A foggy start tomorrow, warming up to ${t(o.high)}.`,
+  };
+
+  let tip: string;
+  if (o.stormSlot) tip = 'Plan indoor time around the storm ⛈️';
+  else if (o.rainSlot || tonightRain) tip = 'Keep your umbrella by the door ☂️';
+  else if (o.feelsMax >= 35) tip = 'A hot one ahead, so keep water handy 💧';
+  else if (o.low <= 8) tip = 'Chilly morning, so lay out a jacket 🧥';
+  else tip = pick(['Sleep well 🌙', 'Rest well, tomorrow looks easy ✨', 'Have a peaceful night 🌙'], tomorrowKey + place.name);
+
+  return { title, body: [night, tomorrow[o.group], tip].join('\n') };
 };

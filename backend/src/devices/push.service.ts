@@ -6,7 +6,7 @@ import { Device } from './entities/device.entity';
 const CHECK_EVERY_MS = 15 * 60 * 1000;
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
-type Kind = 'storm' | 'rain' | 'snow' | 'heat' | 'cold' | 'wind' | 'brief';
+type Kind = 'storm' | 'rain' | 'snow' | 'heat' | 'cold' | 'wind' | 'brief' | 'evening';
 type Severity = 'info' | 'warning' | 'severe';
 
 interface Alert {
@@ -22,10 +22,11 @@ interface Forecast {
   now: { temp: number; feels: number; code: number; wind: number; gust: number };
   hours: { time: string; temp: number; feels: number; code: number; pop: number; wind: number }[];
   today: { high: number; low: number };
+  tomorrow: { high: number; low: number };
 }
 
 // Which user preference governs each alert kind (matches the app's Settings toggles).
-const PREF: Record<Exclude<Kind, 'brief'>, string> = { storm: 'storm', rain: 'rain', snow: 'rain', heat: 'temperature', cold: 'temperature', wind: 'wind' };
+const PREF: Record<Exclude<Kind, 'brief' | 'evening'>, string> = { storm: 'storm', rain: 'rain', snow: 'rain', heat: 'temperature', cold: 'temperature', wind: 'wind' };
 
 const isStorm = (c: number) => c >= 95;
 const isRain = (c: number) => (c >= 51 && c <= 67) || (c >= 80 && c <= 82);
@@ -91,7 +92,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m' +
       '&hourly=temperature_2m,apparent_temperature,weather_code,precipitation_probability,wind_speed_10m' +
-      '&daily=temperature_2m_max,temperature_2m_min&forecast_days=2&wind_speed_unit=ms&timezone=auto';
+      '&daily=temperature_2m_max,temperature_2m_min&forecast_days=3&wind_speed_unit=ms&timezone=auto';
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) return null;
@@ -106,7 +107,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
           wind: d.current.wind_speed_10m,
           gust: d.current.wind_gusts_10m ?? 0,
         },
-        hours: (d.hourly.time as string[]).slice(start, start + 18).map((time, i) => ({
+        hours: (d.hourly.time as string[]).slice(start, start + 48).map((time, i) => ({
           time,
           temp: d.hourly.temperature_2m[start + i],
           feels: d.hourly.apparent_temperature[start + i],
@@ -115,6 +116,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
           wind: d.hourly.wind_speed_10m[start + i] ?? 0,
         })),
         today: { high: d.daily.temperature_2m_max[0], low: d.daily.temperature_2m_min[0] },
+        tomorrow: { high: d.daily.temperature_2m_max[1], low: d.daily.temperature_2m_min[1] },
       };
     } catch {
       return null;
@@ -202,10 +204,10 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     // Respect the user's toggles, and keep the night quiet unless it's severe.
     const localHour = new Date(Date.now() + device.tzOffset * 60_000).getUTCHours();
     const quiet = localHour >= 22 || localHour < 7;
-    const allowed = out.filter((a) => device.alerts?.[PREF[a.kind as Exclude<Kind, 'brief'>]] !== false && (!quiet || a.severity === 'severe'));
+    const allowed = out.filter((a) => device.alerts?.[PREF[a.kind as Exclude<Kind, 'brief' | 'evening'>]] !== false && (!quiet || a.severity === 'severe'));
 
-    const brief = this.morningBrief(device, f);
-    return brief ? [...allowed, brief] : allowed;
+    const daily = [this.morningBrief(device, f), this.eveningBrief(device, f)].filter((a): a is Alert => !!a);
+    return [...allowed, ...daily];
   }
 
   /** Good-morning note at the user's chosen hour (their phone's local time), once a day. */
@@ -255,6 +257,67 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     return { id: `brief:${localDate}`, kind: 'brief', severity: 'info', title, body: [outlook, ...tips.slice(0, 2)].join('\n') };
   }
 
+  /** Good-evening note at the user's chosen hour: tonight's weather and what tomorrow needs. */
+  private eveningBrief(device: Device, f: Forecast): Alert | null {
+    if (device.eveningBrief === false) return null;
+    const local = new Date(Date.now() + device.tzOffset * 60_000);
+    const hour = local.getUTCHours();
+    const localDate = local.toISOString().slice(0, 10);
+    const startHour = device.eveningHour ?? 19;
+    if (hour < startHour || hour >= startHour + 2 || device.lastEveningDate === localDate) return null;
+
+    const t = (c: number) => `${Math.round(device.unit === 'imperial' ? (c * 9) / 5 + 32 : c)}°`;
+    const cityToday = f.hours[0]?.time.slice(0, 10) ?? '';
+    const tomorrow = f.hours.filter((h) => h.time.slice(0, 10) > cityToday).slice(0, 24);
+    if (!tomorrow.length) return null;
+    const tomorrowKey = tomorrow[0].time.slice(0, 10);
+    const tonight = f.hours.filter(
+      (h) => h.time.slice(0, 10) === cityToday || (h.time.slice(0, 10) === tomorrowKey && Number(h.time.slice(11, 13)) < 6),
+    );
+    const tonightLow = tonight.length ? Math.min(...tonight.map((h) => h.temp)) : f.tomorrow.low;
+    const tonightRain = tonight.find((h) => isRain(h.code) || isStorm(h.code) || h.pop >= 50);
+    const storm = tomorrow.find((h) => isStorm(h.code));
+    const rain = tomorrow.find((h) => isRain(h.code) || h.pop >= 50);
+    const snow = tomorrow.some((h) => isSnow(h.code));
+    const feelsMax = Math.max(...tomorrow.map((h) => h.feels));
+    const cloudy = tomorrow.filter((h) => h.code >= 2 && h.code <= 3).length > tomorrow.length / 2;
+
+    const seed = [...tomorrowKey].reduce((n, c) => (n * 31 + c.charCodeAt(0)) | 0, 0);
+    const name = (device.userName || '').trim().split(' ')[0];
+    const you = name ? `, ${name}` : '';
+    const titles = [`Good evening${you} 🌇`, `Evening${you}! Here's tomorrow 🌙`, `Hope your day went well${you} 🌆`];
+
+    const night = tonightRain
+      ? `Showers tonight around ${hourLabel(tonightRain.time)}, down to ${t(tonightLow)}.`
+      : `A calm night ahead, down to ${t(tonightLow)}.`;
+    const outlook = storm
+      ? `Thunderstorms are possible tomorrow around ${hourLabel(storm.time)}.`
+      : snow
+        ? `Snow is expected tomorrow, ${t(f.tomorrow.low)} to ${t(f.tomorrow.high)}.`
+        : rain
+          ? `Rain is likely tomorrow around ${hourLabel(rain.time)}, with a high of ${t(f.tomorrow.high)}.`
+          : cloudy
+            ? `Tomorrow stays cloudy, between ${t(f.tomorrow.low)} and ${t(f.tomorrow.high)}.`
+            : `Tomorrow looks bright, up to ${t(f.tomorrow.high)}.`;
+    const tip = storm
+      ? 'Plan indoor time around the storm ⛈️'
+      : rain || tonightRain
+        ? 'Keep your umbrella by the door ☂️'
+        : feelsMax >= 35
+          ? 'A hot one ahead, so keep water handy 💧'
+          : f.tomorrow.low <= 8
+            ? 'Chilly morning, so lay out a jacket 🧥'
+            : 'Sleep well 🌙';
+
+    return {
+      id: `evening:${localDate}`,
+      kind: 'evening',
+      severity: 'info',
+      title: titles[Math.abs(seed) % titles.length],
+      body: [night, outlook, tip].join('\n'),
+    };
+  }
+
   private async send(items: { device: Device; alert: Alert }[]) {
     for (let i = 0; i < items.length; i += 100) {
       const chunk = items.slice(i, i + 100);
@@ -292,7 +355,11 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         if (ticket?.status !== 'ok') continue;
         device.sentIds = [alert.id, ...device.sentIds].slice(0, 60);
         if (alert.kind === 'brief') device.lastBriefDate = alert.id.slice('brief:'.length);
-        await this.devices.update({ id: device.id }, { sentIds: device.sentIds, lastBriefDate: device.lastBriefDate });
+        if (alert.kind === 'evening') device.lastEveningDate = alert.id.slice('evening:'.length);
+        await this.devices.update(
+          { id: device.id },
+          { sentIds: device.sentIds, lastBriefDate: device.lastBriefDate, lastEveningDate: device.lastEveningDate },
+        );
       }
     }
   }

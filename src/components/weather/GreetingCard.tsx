@@ -5,7 +5,7 @@ import { Card } from '../ui/Card';
 import type { GlyphName, Motion } from '../ui/AnimatedGlyph';
 import type { CurrentWeather, ForecastItem, Place } from '../../types/weather';
 import type { Unit } from '../../store/settingsStore';
-import { buildMorningBrief } from '../../services/alertEngine';
+import { buildEveningBrief, buildMorningBrief } from '../../services/alertEngine';
 import { cityDateKey, greetingName } from '../../utils/format';
 
 interface Props {
@@ -32,7 +32,9 @@ export const GreetingCard: React.FC<Props> = ({ place, current, forecast, unit, 
   const g = greetingFor(new Date(now).getHours());
   const tz = current.timezone;
   const dateKey = cityDateKey(Math.floor(now / 1000) + (g.tomorrow ? 86400 : 0), tz);
-  const brief = buildMorningBrief({ place, current: g.tomorrow ? null : current, forecast, unit, userName, dateKey, tz });
+  const brief = g.tomorrow
+    ? buildEveningBrief({ place, forecast, unit, userName, tomorrowKey: dateKey, tz })
+    : buildMorningBrief({ place, current, forecast, unit, userName, dateKey, tz });
   if (!brief) return null;
 
   const name = greetingName(userName);

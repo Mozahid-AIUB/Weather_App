@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Theme, useStyles, useTheme } from '../theme/ThemeProvider';
 import { AlertPrefs, Appearance, Unit, useSettingsStore } from '../store/settingsStore';
 import { useWeatherStore } from '../store/weatherStore';
 import { useNotificationStore } from '../store/notificationStore';
-import { buildMorningBrief } from '../services/alertEngine';
+import { buildEveningBrief, buildMorningBrief } from '../services/alertEngine';
 import { ScreenHeader } from '../components/ui/ScreenHeader';
 import { Card } from '../components/ui/Card';
 import { Segmented } from '../components/ui/Segmented';
@@ -30,7 +30,51 @@ const ALERT_ROWS: { key: keyof AlertPrefs; label: string; sub: string; icon: Gly
   { key: 'change', label: 'Sudden changes', sub: 'Clear to rain, fog rolling in and more', icon: 'swap-horizontal', motion: 'sway' },
 ];
 
-const BRIEF_HOURS = [6, 7, 8, 9];
+const MORNING_HOURS = [6, 7, 8, 9];
+const EVENING_HOURS = [18, 19, 20, 21];
+const hourLabel = (h: number) => `${h % 12 || 12}:00 ${h >= 12 ? 'PM' : 'AM'}`;
+
+/** One daily message: on/off switch and the hour it arrives. */
+const DailyRow: React.FC<{
+  icon: GlyphName;
+  tint: string;
+  label: string;
+  sub: string;
+  on: boolean;
+  onToggle: (v: boolean) => void;
+  hours: number[];
+  hour: number;
+  onHour: (h: number) => void;
+}> = ({ icon, tint, label, sub, on, onToggle, hours, hour, onHour }) => {
+  const styles = useStyles(makeStyles);
+  const { colors } = useTheme();
+  return (
+    <View>
+      <View style={styles.row}>
+        <View style={[styles.rowIcon, { backgroundColor: `${tint}1F` }]}>
+          <AnimatedGlyph name={icon} size={18} color={tint} motion={on ? 'pulse' : 'none'} />
+        </View>
+        <View style={styles.rowText}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          <Text style={styles.rowSub}>{sub}</Text>
+        </View>
+        <Toggle value={on} onChange={onToggle} />
+      </View>
+      {on && (
+        <View style={styles.hours}>
+          {hours.map((h) => {
+            const active = hour === h;
+            return (
+              <PressableScale key={h} onPress={() => onHour(h)} scaleTo={0.92} style={[styles.hour, active && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+                <Text style={[styles.hourText, active && { color: colors.onAccent }]}>{hourLabel(h)}</Text>
+              </PressableScale>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+};
 
 const Toggle: React.FC<{ value: boolean; onChange: (v: boolean) => void }> = ({ value, onChange }) => {
   const { colors } = useTheme();
@@ -60,15 +104,20 @@ export const SettingsScreen: React.FC<Props> = ({ onOpenNotifications }) => {
   // Push controls only matter where system notifications exist (web or an installed build).
   const showPush = notificationService.support() !== 'none' && permission !== 'unsupported';
 
+  const [previewKind, setPreviewKind] = useState<'morning' | 'evening'>(new Date().getHours() >= 15 ? 'evening' : 'morning');
+  const tz = current?.timezone;
   const preview =
     place && current
-      ? buildMorningBrief({ place, current, forecast, unit: s.unit, userName: s.userName, dateKey: cityDateKey(current.dt, current.timezone), tz: current.timezone })
+      ? previewKind === 'morning'
+        ? buildMorningBrief({ place, current, forecast, unit: s.unit, userName: s.userName, dateKey: cityDateKey(current.dt, tz), tz })
+        : buildEveningBrief({ place, forecast, unit: s.unit, userName: s.userName, tomorrowKey: cityDateKey(current.dt + 86400, tz), tz })
       : null;
 
   const sendTest = () => {
     if (!preview || !place) return;
     haptic.success();
-    ingest([{ id: `test:${Date.now()}`, kind: 'brief', severity: 'info', title: preview.title, body: preview.body, city: place.name }]);
+    const kind = previewKind === 'morning' ? 'brief' : 'evening';
+    ingest([{ id: `test:${Date.now()}`, kind, severity: 'info', title: preview.title, body: preview.body, city: place.name }]);
   };
 
   return (
@@ -103,37 +152,47 @@ export const SettingsScreen: React.FC<Props> = ({ onOpenNotifications }) => {
           />
         </Card>
 
-        <Card title="Morning brief" icon="white-balance-sunny" iconMotion="spin" tint={colors.icon.sun} delay={180}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <Text style={styles.rowLabel}>Good-morning notification</Text>
-              <Text style={styles.rowSub}>Today's forecast, rain timing and what to carry</Text>
+        <Card title="Daily messages" icon="weather-sunset" iconMotion="float" tint={colors.icon.sun} delay={180}>
+          <DailyRow
+            icon="white-balance-sunny"
+            tint={colors.icon.sun}
+            label="Good morning"
+            sub="Today's forecast, rain timing and what to carry"
+            on={s.morningBrief}
+            onToggle={s.setMorningBrief}
+            hours={MORNING_HOURS}
+            hour={s.briefHour}
+            onHour={s.setBriefHour}
+          />
+          <View style={styles.rowDivider} />
+          <DailyRow
+            icon="weather-night"
+            tint={colors.accent}
+            label="Good evening"
+            sub="How tonight goes and what tomorrow needs"
+            on={s.eveningBrief}
+            onToggle={s.setEveningBrief}
+            hours={EVENING_HOURS}
+            hour={s.eveningHour}
+            onHour={s.setEveningHour}
+          />
+          {preview && (s.morningBrief || s.eveningBrief) && (
+            <View style={styles.preview}>
+              <Segmented<'morning' | 'evening'>
+                value={previewKind}
+                onChange={setPreviewKind}
+                options={[
+                  { value: 'morning', label: 'Morning', icon: 'white-balance-sunny' },
+                  { value: 'evening', label: 'Evening', icon: 'weather-night' },
+                ]}
+              />
+              <Text style={[styles.previewTitle, styles.previewGap]}>{preview.title}</Text>
+              <Text style={styles.previewBody}>{preview.body}</Text>
+              <PressableScale onPress={sendTest} style={styles.test}>
+                <AnimatedGlyph name="send-outline" size={15} color={colors.accent} motion="sway" />
+                <Text style={styles.testText}>Send it to me now</Text>
+              </PressableScale>
             </View>
-            <Toggle value={s.morningBrief} onChange={s.setMorningBrief} />
-          </View>
-          {s.morningBrief && (
-            <>
-              <View style={styles.hours}>
-                {BRIEF_HOURS.map((h) => {
-                  const on = s.briefHour === h;
-                  return (
-                    <PressableScale key={h} onPress={() => s.setBriefHour(h)} scaleTo={0.92} style={[styles.hour, on && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
-                      <Text style={[styles.hourText, on && { color: colors.onAccent }]}>{h}:00 AM</Text>
-                    </PressableScale>
-                  );
-                })}
-              </View>
-              {preview && (
-                <View style={styles.preview}>
-                  <Text style={styles.previewTitle}>{preview.title}</Text>
-                  <Text style={styles.previewBody}>{preview.body}</Text>
-                  <PressableScale onPress={sendTest} style={styles.test}>
-                    <AnimatedGlyph name="send-outline" size={15} color={colors.accent} motion="sway" />
-                    <Text style={styles.testText}>Send it to me now</Text>
-                  </PressableScale>
-                </View>
-              )}
-            </>
           )}
         </Card>
 
@@ -236,6 +295,7 @@ const makeStyles = ({ colors, fonts, spacing, radius }: Theme) =>
       borderRadius: radius.md,
       backgroundColor: colors.surfaceSunken,
     },
+    previewGap: { marginTop: spacing.md },
     previewTitle: {
       fontFamily: fonts.semiBold,
       fontSize: 16,

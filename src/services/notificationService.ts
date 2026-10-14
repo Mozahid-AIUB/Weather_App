@@ -31,7 +31,7 @@ if (Platform.OS !== 'web' && !inExpoGo()) {
 }
 
 const CHANNEL_ID = 'weather-alerts';
-const BRIEF_ID = 'morning-brief';
+export type DailyId = 'morning-brief' | 'evening-brief';
 
 export type DeviceSupport = 'native' | 'web' | 'none';
 export type PermissionState = 'granted' | 'denied' | 'default' | 'unsupported';
@@ -113,14 +113,14 @@ export const notificationService = {
     }
   },
 
-  /** Replaces the pending morning brief so the OS delivers it even if the app stays closed. */
-  scheduleMorningBrief: async (date: Date, title: string, body: string) => {
+  /** Replaces the pending daily message `id` so the OS delivers it even if the app stays closed. */
+  scheduleDaily: async (id: DailyId, date: Date, title: string, body: string) => {
     if (!Notifications) return;
     try {
       await ensureChannel();
-      await Notifications.cancelScheduledNotificationAsync(BRIEF_ID).catch(() => {});
+      await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
       await Notifications.scheduleNotificationAsync({
-        identifier: BRIEF_ID,
+        identifier: id,
         content: { title, body, sound: true },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -133,9 +133,9 @@ export const notificationService = {
     }
   },
 
-  cancelMorningBrief: async () => {
+  cancelDaily: async (id: DailyId) => {
     if (!Notifications) return;
-    await Notifications.cancelScheduledNotificationAsync(BRIEF_ID).catch(() => {});
+    await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
   },
 
   /** Expo push token for server-sent alerts; null in Expo Go, on web or without permission. */

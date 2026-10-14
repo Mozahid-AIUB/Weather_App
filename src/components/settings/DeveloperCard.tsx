@@ -21,10 +21,6 @@ export const DeveloperCard: React.FC<{ delay?: number }> = ({ delay = 0 }) => {
         <View style={styles.flex}>
           <Text style={styles.name}>{DEVELOPER.name}</Text>
           <Text style={styles.role}>{DEVELOPER.role}</Text>
-          <View style={styles.locationRow}>
-            <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textMuted} />
-            <Text style={styles.location}>{DEVELOPER.location}</Text>
-          </View>
         </View>
       </View>
 
@@ -63,17 +59,6 @@ const makeStyles = ({ colors, fonts, spacing, radius }: Theme) =>
       fontSize: 13,
       color: colors.textSecondary,
       marginTop: 1,
-    },
-    locationRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      marginTop: 3,
-    },
-    location: {
-      fontFamily: fonts.regular,
-      fontSize: 12.5,
-      color: colors.textMuted,
     },
     primary: {
       flexDirection: 'row',

@@ -4,7 +4,7 @@ import { cleanName } from '../utils/format';
 
 export type Appearance = 'auto' | 'light' | 'dark';
 export type Unit = 'metric' | 'imperial';
-export type AlertKind = 'storm' | 'rain' | 'snow' | 'heat' | 'cold' | 'wind' | 'visibility' | 'change' | 'brief';
+export type AlertKind = 'storm' | 'rain' | 'snow' | 'heat' | 'cold' | 'wind' | 'visibility' | 'change' | 'brief' | 'evening';
 
 export type AlertPrefs = Record<'storm' | 'rain' | 'temperature' | 'wind' | 'change', boolean>;
 
@@ -15,6 +15,8 @@ interface SettingsState {
   userName: string;
   morningBrief: boolean;
   briefHour: number;
+  eveningBrief: boolean;
+  eveningHour: number;
   alerts: AlertPrefs;
 
   hydrate: () => Promise<void>;
@@ -23,12 +25,14 @@ interface SettingsState {
   setUserName: (name: string) => void;
   setMorningBrief: (on: boolean) => void;
   setBriefHour: (hour: number) => void;
+  setEveningBrief: (on: boolean) => void;
+  setEveningHour: (hour: number) => void;
   setAlert: (key: keyof AlertPrefs, on: boolean) => void;
 }
 
 const STORAGE_KEY = '@weathernow_settings_v2';
 
-type Persisted = Pick<SettingsState, 'appearance' | 'unit' | 'userName' | 'morningBrief' | 'briefHour' | 'alerts'>;
+type Persisted = Pick<SettingsState, 'appearance' | 'unit' | 'userName' | 'morningBrief' | 'briefHour' | 'eveningBrief' | 'eveningHour' | 'alerts'>;
 
 // US (and the two other countries on Fahrenheit) default to imperial; everyone else to metric.
 const detectUnit = (): Unit => {
@@ -47,13 +51,15 @@ const DEFAULTS: Persisted = {
   userName: '',
   morningBrief: true,
   briefHour: 7,
+  eveningBrief: true,
+  eveningHour: 19,
   alerts: { storm: true, rain: true, temperature: true, wind: true, change: true },
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => {
   const persist = () => {
-    const { appearance, unit, userName, morningBrief, briefHour, alerts } = get();
-    const data: Persisted = { appearance, unit, userName, morningBrief, briefHour, alerts };
+    const { appearance, unit, userName, morningBrief, briefHour, eveningBrief, eveningHour, alerts } = get();
+    const data: Persisted = { appearance, unit, userName, morningBrief, briefHour, eveningBrief, eveningHour, alerts };
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data)).catch(() => {});
   };
 
@@ -84,12 +90,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     setUserName: (userName) => update({ userName: cleanName(userName).slice(0, 30) }),
     setMorningBrief: (morningBrief) => update({ morningBrief }),
     setBriefHour: (briefHour) => update({ briefHour }),
+    setEveningBrief: (eveningBrief) => update({ eveningBrief }),
+    setEveningHour: (eveningHour) => update({ eveningHour }),
     setAlert: (key, on) => update({ alerts: { ...get().alerts, [key]: on } }),
   };
 });
 
-/** Which preference toggle governs each alert kind. `brief` is controlled by `morningBrief`. */
-export const ALERT_PREF_FOR: Record<Exclude<AlertKind, 'brief'>, keyof AlertPrefs> = {
+/** Which preference toggle governs each alert kind. Daily messages use morningBrief / eveningBrief. */
+export const ALERT_PREF_FOR: Record<Exclude<AlertKind, 'brief' | 'evening'>, keyof AlertPrefs> = {
   storm: 'storm',
   rain: 'rain',
   snow: 'rain',

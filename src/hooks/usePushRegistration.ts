@@ -16,7 +16,7 @@ export const usePushRegistration = () => {
   const permission = useNotificationStore((s) => s.permission);
   const place = useWeatherStore((s) => s.place);
   const isGps = useWeatherStore((s) => s.isGps);
-  const { unit, userName, morningBrief, briefHour, alerts } = useSettingsStore();
+  const { unit, userName, morningBrief, briefHour, eveningBrief, eveningHour, alerts } = useSettingsStore();
 
   useEffect(() => {
     if (permission !== 'granted' || !backendConfigured || notificationService.support() !== 'native' || !place) return;
@@ -38,6 +38,8 @@ export const usePushRegistration = () => {
         userName,
         morningBrief,
         briefHour,
+        eveningBrief,
+        eveningHour,
         tzOffset: -new Date().getTimezoneOffset(),
         alerts: { storm: alerts.storm, rain: alerts.rain, temperature: alerts.temperature, wind: alerts.wind },
       };
@@ -49,7 +51,8 @@ export const usePushRegistration = () => {
       if (await backendService.registerDevice(reg)) {
         await AsyncStorage.setItem(PUSH_REG_KEY, raw);
         useNotificationStore.getState().setServerPush(true);
-        notificationService.cancelMorningBrief();
+        notificationService.cancelDaily('morning-brief');
+        notificationService.cancelDaily('evening-brief');
       }
     }, 1500);
 
@@ -57,7 +60,7 @@ export const usePushRegistration = () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [permission, place?.lat, place?.lon, place?.name, isGps, unit, userName, morningBrief, briefHour, alerts]);
+  }, [permission, place?.lat, place?.lon, place?.name, isGps, unit, userName, morningBrief, briefHour, eveningBrief, eveningHour, alerts]);
 
   // Server pushes that land while the app is open become an in-app toast.
   useEffect(() => notificationService.onServerPush((push) => useNotificationStore.getState().ingestServerPush(push)), []);

@@ -13,10 +13,12 @@ export const ALERT_ICON: Record<AlertKind, { icon: GlyphName; motion: Motion }> 
   visibility: { icon: 'weather-fog', motion: 'sway' },
   change: { icon: 'weather-partly-cloudy', motion: 'float' },
   brief: { icon: 'white-balance-sunny', motion: 'spin' },
+  evening: { icon: 'weather-sunset', motion: 'float' },
 };
 
 export const severityColor = (severity: Severity, kind: AlertKind, colors: Palette) => {
   if (kind === 'brief') return colors.icon.sun;
+  if (kind === 'evening') return colors.tempWarm;
   if (severity === 'severe') return colors.danger;
   if (severity === 'warning') return colors.warning;
   return colors.accent;

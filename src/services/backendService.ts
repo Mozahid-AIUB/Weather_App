@@ -25,6 +25,8 @@ export interface DeviceRegistration {
   userName: string;
   morningBrief: boolean;
   briefHour: number;
+  eveningBrief: boolean;
+  eveningHour: number;
   tzOffset: number;
   alerts: Record<'storm' | 'rain' | 'temperature' | 'wind', boolean>;
 }

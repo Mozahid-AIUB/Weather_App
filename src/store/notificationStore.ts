@@ -70,7 +70,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       const prefs = useSettingsStore.getState();
       const fresh = alerts.filter((a) => {
         if (seen.includes(a.id)) return false;
-        return a.kind === 'brief' ? prefs.morningBrief : prefs.alerts[ALERT_PREF_FOR[a.kind]];
+        if (a.kind === 'brief') return prefs.morningBrief;
+        if (a.kind === 'evening') return prefs.eveningBrief;
+        return prefs.alerts[ALERT_PREF_FOR[a.kind]];
       });
       if (!fresh.length) return;
 
@@ -89,14 +91,14 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       // condition changes, at most two at once.
       if (get().serverPush) return;
       added
-        .filter((a) => a.severity !== 'info' || a.kind === 'brief')
+        .filter((a) => a.severity !== 'info' || a.kind === 'brief' || a.kind === 'evening')
         .slice(0, 2)
         .forEach((a) => notificationService.present(a.title, a.body));
     },
 
     ingestServerPush: (push) => {
       if (get().seen.includes(push.id)) return;
-      const kinds = ['storm', 'rain', 'snow', 'heat', 'cold', 'wind', 'visibility', 'change', 'brief'];
+      const kinds = ['storm', 'rain', 'snow', 'heat', 'cold', 'wind', 'visibility', 'change', 'brief', 'evening'];
       const severities = ['info', 'warning', 'severe'];
       const item: AppNotification = {
         ...push,

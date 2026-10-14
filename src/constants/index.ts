@@ -122,6 +122,5 @@ export const countryFlag = (code?: string) =>
 export const DEVELOPER = {
   name: 'Mozahid Software',
   role: 'Software, App & AI Solutions',
-  location: 'Dhaka, Bangladesh',
   email: 'mozahidul.islam.ai@gmail.com',
 };

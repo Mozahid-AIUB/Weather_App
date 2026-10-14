@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { loadLastPlace, useWeatherStore } from '../store/weatherStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useNotificationStore } from '../store/notificationStore';
-import { buildMorningBrief, DerivedAlert, deriveAlerts } from '../services/alertEngine';
+import { buildEveningBrief, buildMorningBrief, DerivedAlert, deriveAlerts } from '../services/alertEngine';
 import { notificationService } from '../services/notificationService';
 import { conditionGroup } from '../utils/weather';
 import { cityDateKey } from '../utils/format';
@@ -38,36 +38,40 @@ const processUpdate = () => {
     previousGroup: prev && Date.now() - prev.at < CHANGE_WINDOW_MS ? prev.group : undefined,
   });
 
-  // Opened during the morning and today's brief hasn't been shown yet.
+  // Opened during the morning / evening and that message hasn't been shown yet.
   const hour = new Date().getHours();
+  const todayKey = cityDateKey(current.dt, tz);
+  const tomorrowKey = cityDateKey(current.dt + 86400, tz);
+  const base = { place, forecast, unit: settings.unit, userName: settings.userName, tz };
   if (settings.morningBrief && hour >= settings.briefHour && hour < 12) {
-    const dateKey = cityDateKey(current.dt, tz);
-    const brief = buildMorningBrief({ place, current, forecast, unit: settings.unit, userName: settings.userName, dateKey, tz });
-    if (brief) alerts.push({ id: `brief:${dateKey}`, kind: 'brief', severity: 'info', ...brief, city: place.name });
+    const brief = buildMorningBrief({ ...base, current, dateKey: todayKey });
+    if (brief) alerts.push({ id: `brief:${todayKey}`, kind: 'brief', severity: 'info', ...brief, city: place.name });
+  }
+  if (settings.eveningBrief && hour >= settings.eveningHour && hour < 23) {
+    const evening = buildEveningBrief({ ...base, tomorrowKey });
+    if (evening) alerts.push({ id: `evening:${todayKey}`, kind: 'evening', severity: 'info', ...evening, city: place.name });
   }
 
   notifications.ingest(alerts);
   notifications.setLastGroup(place.name, conditionGroup(current.weather[0]?.id));
 
-  // Keep the next morning's push up to date with the newest forecast, so the OS can deliver
-  // it at the chosen hour even if the app is closed.
+  // Keep the next morning and evening messages up to date with the newest forecast, so the OS
+  // delivers them at the chosen hours even if the app is closed. Once this phone is registered,
+  // the server sends them instead.
   if (!notificationService.canSchedule()) return;
-  // The server sends the morning brief once this phone is registered; don't double up.
-  if (!settings.morningBrief || notifications.serverPush) {
-    notificationService.cancelMorningBrief();
-    return;
-  }
-  const at = nextBriefTime(settings.briefHour);
-  const brief = buildMorningBrief({
-    place,
-    current: null,
-    forecast,
-    unit: settings.unit,
-    userName: settings.userName,
-    dateKey: cityDateKey(Math.floor(at.getTime() / 1000), tz),
-    tz,
-  });
-  if (brief) notificationService.scheduleMorningBrief(at, brief.title, brief.body);
+  const keyAt = (at: Date, plusDays = 0) => cityDateKey(Math.floor(at.getTime() / 1000) + plusDays * 86400, tz);
+
+  if (settings.morningBrief && !notifications.serverPush) {
+    const at = nextBriefTime(settings.briefHour);
+    const brief = buildMorningBrief({ ...base, current: null, dateKey: keyAt(at) });
+    if (brief) notificationService.scheduleDaily('morning-brief', at, brief.title, brief.body);
+  } else notificationService.cancelDaily('morning-brief');
+
+  if (settings.eveningBrief && !notifications.serverPush) {
+    const at = nextBriefTime(settings.eveningHour);
+    const evening = buildEveningBrief({ ...base, tomorrowKey: keyAt(at, 1) });
+    if (evening) notificationService.scheduleDaily('evening-brief', at, evening.title, evening.body);
+  } else notificationService.cancelDaily('evening-brief');
 };
 
 /**
@@ -78,6 +82,8 @@ export const useLiveWeather = () => {
   const lastUpdated = useWeatherStore((s) => s.lastUpdated);
   const morningBrief = useSettingsStore((s) => s.morningBrief);
   const briefHour = useSettingsStore((s) => s.briefHour);
+  const eveningBrief = useSettingsStore((s) => s.eveningBrief);
+  const eveningHour = useSettingsStore((s) => s.eveningHour);
 
   useEffect(() => {
     (async () => {
@@ -105,5 +111,5 @@ export const useLiveWeather = () => {
 
   useEffect(() => {
     if (lastUpdated) processUpdate();
-  }, [lastUpdated, morningBrief, briefHour]);
+  }, [lastUpdated, morningBrief, briefHour, eveningBrief, eveningHour]);
 };

@@ -48,6 +48,18 @@ export class RegisterDeviceDto {
   @Max(23)
   briefHour: number;
 
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  eveningBrief?: boolean;
+
+  @ApiProperty({ required: false, example: 19 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  eveningHour?: number;
+
   @ApiProperty({ example: 360, description: 'Minutes east of UTC' })
   @IsInt()
   @Min(-840)
